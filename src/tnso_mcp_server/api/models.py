@@ -100,9 +100,14 @@ def _coerce_dimension_filters(v: Any) -> Any:
 
 
 class DiscoverDataflowsInput(BaseModel):
-    """Input for discover_dataflows: optional comma-separated keywords."""
+    """Input for discover_dataflows: optional comma-separated keywords.
+
+    A dataflow matches if it contains *any* of the keywords (OR). Set
+    ``match_all`` to require *every* keyword to appear (AND).
+    """
 
     keywords: str = ""
+    match_all: bool = False
 
 
 class GetStructureInput(BaseModel):
