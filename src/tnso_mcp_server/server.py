@@ -40,9 +40,11 @@ def _tool_definitions() -> list[Tool]:
             description=(
                 "Discover available TNSO (Thailand National Statistical Office) dataflows. "
                 "Optionally filter by comma-separated keywords (matched against id, Thai/English "
-                "name and description). A dataflow matches if it contains ANY of the keywords "
-                "(OR); set match_all=true to require ALL keywords (AND). "
-                "Start here to find a dataset, then call get_constraints."
+                "name and description). A dataflow matches the keywords if it contains ANY of "
+                "them (OR); set match_all=true to require ALL (AND). 'covers' additionally keeps "
+                "only dataflows that actually have data for the given dimension codes — e.g. "
+                "covers={\"CWT\": [\"10\", \"20\"]} returns the dataflows carrying both Bangkok "
+                "and Chon Buri. Start here, then call get_constraints."
             ),
             inputSchema={
                 "type": "object",
@@ -61,6 +63,25 @@ def _tool_definitions() -> list[Tool]:
                             "Require every keyword to appear (AND) instead of any (OR). "
                             "Default false."
                         ),
+                    },
+                    "covers": {
+                        "description": (
+                            "Map of dimension id -> codes the dataflow must have data for, "
+                            "checked per dimension (marginal availability). E.g. {\"CWT\": "
+                            "[\"10\", \"20\"]} keeps only dataflows whose data covers both "
+                            "provinces. May also be that object JSON-encoded as a string."
+                        ),
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "minItems": 1,
+                                },
+                            },
+                            {"type": "string"},
+                        ],
                     },
                 },
             },

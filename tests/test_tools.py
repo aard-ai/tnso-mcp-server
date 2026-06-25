@@ -79,6 +79,10 @@ class FakeApi:
     async def get_availableconstraint(self, dataflow_id, version=None):
         return {"POP_IND": ["DEM_IND101"], "CWT": ["10", "58"]}, ("2557", "2567")
 
+    async def get_content_constraints(self):
+        # Bulk availability index: DF_AGING has data for CWT 10 and 58 (not 20).
+        return {"DF_AGING": {"POP_IND": ["DEM_IND101"], "CWT": ["10", "58"]}}
+
     async def get_data_csv(
         self,
         dataflow_id,
@@ -178,6 +182,65 @@ async def test_discover_match_all_requires_every_keyword(cache_manager):
     # ...but both "aging" and "index" appear in "Aging Index", so it matches.
     res = await handle_discover_dataflows(
         {"keywords": "aging, index", "match_all": True}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 1
+
+
+async def test_discover_covers_filters_by_availability(cache_manager):
+    api = FakeApi()
+    # DF_AGING has data for CWT 10 and 58.
+    keep = await handle_discover_dataflows(
+        {"covers": {"CWT": ["10"]}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(keep))["count"] == 1
+    # 20 is not in this dataflow's availability -> excluded.
+    drop = await handle_discover_dataflows(
+        {"covers": {"CWT": ["20"]}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(drop))["count"] == 0
+    # Every requested code must be present: 10 is there, 99 is not -> excluded.
+    partial = await handle_discover_dataflows(
+        {"covers": {"CWT": ["10", "99"]}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(partial))["count"] == 0
+
+
+async def test_discover_covers_combines_with_keywords(cache_manager):
+    api = FakeApi()
+    hit = await handle_discover_dataflows(
+        {"keywords": "aging", "covers": {"CWT": ["10"]}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(hit))["count"] == 1
+    # Keyword miss filters it out before coverage is even consulted.
+    miss = await handle_discover_dataflows(
+        {"keywords": "zzz", "covers": {"CWT": ["10"]}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(miss))["count"] == 0
+
+
+async def test_discover_covers_accepts_json_string(cache_manager):
+    api = FakeApi()
+    # LLMs often send the object as a JSON string; the model coerces it.
+    res = await handle_discover_dataflows(
+        {"covers": '{"CWT": ["10", "58"]}'}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 1
+
+
+async def test_discover_covers_empty_codes_is_a_noop(cache_manager):
+    api = FakeApi()
+    # An empty code list must NOT match vacuously: covers={"CWT": []} == no coverage filter.
+    res = await handle_discover_dataflows(
+        {"covers": {"CWT": []}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 1  # DF_AGING still returned (filter is a no-op)
+
+
+async def test_discover_covers_strips_whitespace(cache_manager):
+    api = FakeApi()
+    # Stray whitespace in a requested code must not cause a false negative (DF_AGING has 10).
+    res = await handle_discover_dataflows(
+        {"covers": {"CWT": [" 10 "]}}, cache_manager, api, DataflowBlacklist([])
     )
     assert json.loads(_text(res))["count"] == 1
 

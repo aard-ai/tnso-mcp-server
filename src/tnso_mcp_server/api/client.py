@@ -387,6 +387,64 @@ class ApiClient:
             time_range = (start, end)
         return dim_values, time_range
 
+    async def get_content_constraints(self) -> dict[str, dict[str, list[str]]]:
+        """Fetch EVERY dataflow's published availability constraint in one call.
+
+        Returns ``{dataflow_id: {dimension: [codes that have data]}}`` — the bulk form of
+        :meth:`get_availableconstraint`. One request covers the whole catalogue, so a
+        structural question ("which dataflows actually carry CWT codes 10 and 20?") costs a
+        single fetch instead of one availableconstraint call per dataflow.
+        """
+        xml = await self._get(
+            f"contentconstraint/{self.agency}",
+            timeout=self.availableconstraint_timeout,
+        )
+        return self._parse_content_constraints(xml)
+
+    @staticmethod
+    def _parse_content_constraints(xml: str) -> dict[str, dict[str, list[str]]]:
+        """Parse the bulk contentconstraint document into ``{dataflow_id: {dim: [codes]}}``.
+
+        Each ``ContentConstraint`` is attached to one dataflow (``ConstraintAttachment >
+        Dataflow > Ref``) and carries one or more ``CubeRegion`` blocks of ``KeyValue``
+        dimensions. Codes are accumulated (deduped, first-seen order) across every included
+        region and across repeated constraints for the same dataflow, so nothing is lost to
+        overwriting. ``include="false"`` regions describe *excluded* codes and are skipped,
+        and ``TimeRange``-only dimensions (no plain ``Value``) are omitted — mirroring
+        :meth:`_parse_availableconstraint`.
+
+        The result is **marginal** availability: per-dimension code sets, not the joint
+        combinations that co-occur. TNSO publishes exactly one inclusive region per
+        constraint listing each dimension's values independently, so for the per-dimension
+        coverage queries this backs (e.g. "has data for CWT 10 and 20") it is exact. It does
+        not assert that a specific cross-dimension combination (CWT=10 AND SEX=F) co-occurs.
+        Keyed by dataflow id (the catalogue carries one version per id).
+        """
+        root = etree.fromstring(xml.encode("utf-8"))
+        out: dict[str, dict[str, list[str]]] = {}
+        for cc in root.iterfind(".//structure:ContentConstraint", NS):
+            attach = cc.find(".//structure:ConstraintAttachment/structure:Dataflow", NS)
+            # Resolve <Ref> by local-name so a namespaced <common:Ref> also matches.
+            refs = attach.xpath("./*[local-name()='Ref']") if attach is not None else []
+            df_id = refs[0].get("id", "") if refs else ""
+            if not df_id:
+                continue
+            dims = out.setdefault(df_id, {})
+            for region in cc.iterfind(".//structure:CubeRegion", NS):
+                if region.get("include", "true") == "false":
+                    continue  # an exclude region lists codes that are NOT available
+                for kv in region.findall("common:KeyValue", NS):
+                    dim = kv.get("id", "")
+                    values = [(v.text or "").strip() for v in kv.findall("common:Value", NS) if v.text]
+                    if not (dim and values):
+                        continue
+                    bucket = dims.setdefault(dim, [])
+                    for val in values:
+                        if val not in bucket:
+                            bucket.append(val)
+        # Drop dataflows whose only regions were excludes / time-ranges (left with no dims).
+        return {df: dims for df, dims in out.items() if dims}
+
     async def get_conceptschemes(self) -> list[ConceptSchemeInfo]:
         """Fetch and parse every TNSO concept scheme (used by the concept lookup)."""
         xml = await self._get(f"conceptscheme/{self.agency}")

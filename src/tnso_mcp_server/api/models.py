@@ -100,14 +100,24 @@ def _coerce_dimension_filters(v: Any) -> Any:
 
 
 class DiscoverDataflowsInput(BaseModel):
-    """Input for discover_dataflows: optional comma-separated keywords.
+    """Input for discover_dataflows: optional keyword and coverage filters.
 
-    A dataflow matches if it contains *any* of the keywords (OR). Set
-    ``match_all`` to require *every* keyword to appear (AND).
+    A dataflow matches the keywords if it contains *any* of them (OR); set ``match_all``
+    to require *every* keyword (AND). ``covers`` additionally keeps only dataflows whose
+    published availability includes the given codes, e.g. ``{"CWT": ["10", "20"]}`` ->
+    only dataflows that actually carry both Bangkok and Chon Buri. Coverage is checked
+    **per dimension** (marginal availability), not as a joint combination. ``covers`` may
+    be a dict or its JSON-encoded string form.
     """
 
     keywords: str = ""
     match_all: bool = False
+    covers: dict[str, list[str]] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("covers", "covers_codes"),
+    )
+
+    _coerce_covers = field_validator("covers", mode="before")(_coerce_dimension_filters)
 
 
 class GetStructureInput(BaseModel):
