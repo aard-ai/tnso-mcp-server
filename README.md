@@ -23,7 +23,7 @@ swapped in.
 
 | Tool | What it does |
 |---|---|
-| `discover_dataflows` | Search ~900 TNSO dataflows by keyword (Thai/English); any keyword matches (OR), or `match_all` for AND. |
+| `discover_dataflows` | Search ~900 TNSO dataflows by keyword (Thai/English; any keyword matches (OR), or `match_all` for AND), or by `covers` — the dimension codes a dataflow must actually have data for (e.g. `{"CWT": ["10","20"]}` → every dataflow carrying both Bangkok and Chon Buri). |
 | `get_structure` | Dimensions + codelists for a data structure (DSD). |
 | `get_constraints` | Valid values (with labels) per dimension + available time range. **Start here.** |
 | `get_codelist_description` | Thai/English labels for every code in a codelist. |
@@ -92,6 +92,8 @@ log level, dataflow blacklist). All values have sensible defaults, so `.env` is 
 ```
 discover_dataflows(keywords="aging")
   -> DF_01DI_IND_AGING — "Aging Index dataflow"
+discover_dataflows(covers={"CWT": ["10", "20"]})
+  -> every dataflow whose data covers both Bangkok (10) and Chon Buri (20)
 get_constraints(dataflow_id="DF_01DI_IND_AGING")
   -> dimensions POP_IND, SEX, AREA, CWT, ...; TIME_PERIOD range 2557–2567 (BE)
 get_territorial_codes(level="province", name="bangkok")

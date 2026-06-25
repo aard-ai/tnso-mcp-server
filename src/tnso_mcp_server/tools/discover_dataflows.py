@@ -12,7 +12,7 @@ from ..api.models import DiscoverDataflowsInput
 from ..cache.manager import CacheManager
 from ..utils.blacklist import DataflowBlacklist
 from ..utils.validators import validate_keywords
-from .helpers import format_json_response, get_cached_dataflows
+from .helpers import format_json_response, get_cached_availability, get_cached_dataflows
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,22 @@ async def handle_discover_dataflows(
             return reducer(k in haystack for k in keywords)
 
         dataflows = [df for df in dataflows if matches(df)]
+
+    if params.covers:
+        # Keep only dataflows whose published availability includes EVERY requested code,
+        # for EVERY requested dimension — i.e. the data is actually present, not merely a
+        # dimension the DSD declares. One bulk fetch (cached) answers this for all dataflows.
+        availability = await get_cached_availability(cache, api)
+
+        def covered(df) -> bool:
+            """True if the dataflow's availability covers all requested dim/codes."""
+            avail = availability.get(df.id, {})
+            return all(
+                set(codes) <= set(avail.get(dim, []))
+                for dim, codes in params.covers.items()
+            )
+
+        dataflows = [df for df in dataflows if covered(df)]
 
     return format_json_response(
         {"count": len(dataflows), "dataflows": [df.model_dump() for df in dataflows]}

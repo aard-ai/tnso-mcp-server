@@ -57,6 +57,7 @@ def test_every_required_name_is_declared_in_properties():
         ("discover_dataflows", {}),
         ("discover_dataflows", {"keywords": "population, aging"}),
         ("discover_dataflows", {"keywords": "education, health", "match_all": True}),
+        ("discover_dataflows", {"covers": {"CWT": ["10", "20"]}}),
         ("get_structure", {"datastructure_id": "DSD_01DI_IND_AGING"}),
         ("get_constraints", {"dataflow_id": "DF_01DI_IND_AGING"}),
         ("get_codelist_description", {"codelist_id": "CL_CWT"}),

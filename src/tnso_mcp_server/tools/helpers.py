@@ -88,6 +88,11 @@ def k_conceptschemes(agency: str) -> str:
     return f"conceptschemes:{agency}"
 
 
+def k_content_constraints(agency: str) -> str:
+    """Cache key for the bulk per-dataflow availability index."""
+    return f"content_constraints:{agency}"
+
+
 def k_data(
     agency: str,
     dataflow_id: str,
@@ -192,6 +197,24 @@ async def get_cached_conceptschemes(cache: CacheManager, api: ApiClient) -> list
 
     raw = await cache.get_or_fetch(k_conceptschemes(api.agency), fetch, persistent_ttl=METADATA_TTL)
     return [ConceptSchemeInfo.model_validate(c) for c in (raw or [])]
+
+
+async def get_cached_availability(
+    cache: CacheManager, api: ApiClient
+) -> dict[str, dict[str, list[str]]]:
+    """Return the bulk availability index ``{dataflow_id: {dim: [codes]}}`` from cache.
+
+    One upstream call (``contentconstraint/<agency>``) covers every dataflow, so coverage
+    filtering in ``discover_dataflows`` never fans out to per-dataflow constraint fetches.
+    """
+    async def fetch() -> dict:
+        """Fetch the bulk availability index (already a cache-friendly plain dict)."""
+        return await api.get_content_constraints()
+
+    raw = await cache.get_or_fetch(
+        k_content_constraints(api.agency), fetch, persistent_ttl=METADATA_TTL
+    )
+    return raw or {}
 
 
 # --------------------------------------------------------------------------- #

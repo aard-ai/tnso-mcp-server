@@ -120,3 +120,51 @@ def test_parse_availableconstraint():
     # TIME_PERIOD has no plain <Value>, only a TimeRange -> excluded from dim_values
     assert "TIME_PERIOD" not in dim_values
     assert time_range == ("2557", "2567")
+
+
+CONTENTCONSTRAINT_XML = f"""<?xml version="1.0" encoding="utf-8"?>
+<message:Structure {NS}>
+ <message:Structures><structure:Constraints>
+  <structure:ContentConstraint id="CR_A_DF_AGING" type="Actual">
+   <structure:ConstraintAttachment>
+     <structure:Dataflow>
+       <Ref id="DF_AGING" version="1.0" agencyID="TNSO" package="datastructure" class="Dataflow"/>
+     </structure:Dataflow>
+   </structure:ConstraintAttachment>
+   <structure:CubeRegion include="true">
+     <common:KeyValue id="POP_IND"><common:Value>DEM_IND101</common:Value></common:KeyValue>
+     <common:KeyValue id="CWT">
+       <common:Value>10</common:Value>
+       <common:Value>20</common:Value>
+     </common:KeyValue>
+     <common:KeyValue id="TIME_PERIOD">
+       <common:TimeRange>
+         <common:StartPeriod>2557</common:StartPeriod>
+         <common:EndPeriod>2567</common:EndPeriod>
+       </common:TimeRange>
+     </common:KeyValue>
+   </structure:CubeRegion>
+  </structure:ContentConstraint>
+  <structure:ContentConstraint id="CR_A_DF_NATIONAL" type="Actual">
+   <structure:ConstraintAttachment>
+     <structure:Dataflow>
+       <Ref id="DF_NATIONAL" version="1.0" agencyID="TNSO" package="datastructure" class="Dataflow"/>
+     </structure:Dataflow>
+   </structure:ConstraintAttachment>
+   <structure:CubeRegion include="true">
+     <common:KeyValue id="CWT"><common:Value>_T</common:Value></common:KeyValue>
+   </structure:CubeRegion>
+  </structure:ContentConstraint>
+ </structure:Constraints></message:Structures>
+</message:Structure>"""
+
+
+def test_parse_content_constraints_maps_dataflow_to_available_codes():
+    idx = ApiClient._parse_content_constraints(CONTENTCONSTRAINT_XML)
+    assert set(idx) == {"DF_AGING", "DF_NATIONAL"}
+    assert idx["DF_AGING"]["POP_IND"] == ["DEM_IND101"]
+    assert idx["DF_AGING"]["CWT"] == ["10", "20"]
+    # TimeRange-only dimension has no plain <Value> -> excluded, like availableconstraint.
+    assert "TIME_PERIOD" not in idx["DF_AGING"]
+    # National-only dataflow carries CWT _T but not the provinces.
+    assert idx["DF_NATIONAL"]["CWT"] == ["_T"]

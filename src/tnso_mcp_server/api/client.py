@@ -387,6 +387,46 @@ class ApiClient:
             time_range = (start, end)
         return dim_values, time_range
 
+    async def get_content_constraints(self) -> dict[str, dict[str, list[str]]]:
+        """Fetch EVERY dataflow's published availability constraint in one call.
+
+        Returns ``{dataflow_id: {dimension: [codes that have data]}}`` — the bulk form of
+        :meth:`get_availableconstraint`. One request covers the whole catalogue, so a
+        structural question ("which dataflows actually carry CWT codes 10 and 20?") costs a
+        single fetch instead of one availableconstraint call per dataflow.
+        """
+        xml = await self._get(
+            f"contentconstraint/{self.agency}",
+            timeout=self.availableconstraint_timeout,
+        )
+        return self._parse_content_constraints(xml)
+
+    @staticmethod
+    def _parse_content_constraints(xml: str) -> dict[str, dict[str, list[str]]]:
+        """Parse the bulk contentconstraint document into ``{dataflow_id: {dim: [codes]}}``.
+
+        Each ``ContentConstraint`` is attached to one dataflow (``ConstraintAttachment >
+        Dataflow > Ref``) and carries a ``CubeRegion`` of ``KeyValue`` dimensions.
+        ``TimeRange``-only dimensions (no plain ``Value``) are omitted, mirroring
+        :meth:`_parse_availableconstraint`.
+        """
+        root = etree.fromstring(xml.encode("utf-8"))
+        out: dict[str, dict[str, list[str]]] = {}
+        for cc in root.iterfind(".//structure:ContentConstraint", NS):
+            ref = cc.find(".//structure:ConstraintAttachment/structure:Dataflow/Ref", NS)
+            df_id = ref.get("id", "") if ref is not None else ""
+            if not df_id:
+                continue
+            dims: dict[str, list[str]] = {}
+            for kv in cc.iterfind(".//structure:CubeRegion/common:KeyValue", NS):
+                dim = kv.get("id", "")
+                values = [(v.text or "").strip() for v in kv.findall("common:Value", NS) if v.text]
+                if dim and values:
+                    dims[dim] = values
+            if dims:
+                out[df_id] = dims
+        return out
+
     async def get_conceptschemes(self) -> list[ConceptSchemeInfo]:
         """Fetch and parse every TNSO concept scheme (used by the concept lookup)."""
         xml = await self._get(f"conceptscheme/{self.agency}")
