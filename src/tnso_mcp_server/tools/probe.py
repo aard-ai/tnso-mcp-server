@@ -43,9 +43,13 @@ class Candidate:
 
 
 def count_data_rows(csv_text: str) -> int:
-    """Count SDMX-CSV data rows (total rows minus the header); 0 for header-only/empty."""
+    """Count SDMX-CSV data rows (non-empty rows minus the header); 0 for header-only/empty.
+
+    Blank lines (which ``csv.reader`` yields as empty rows) are ignored so a trailing
+    or interleaved newline never inflates the count into a false "non-empty" verdict.
+    """
     reader = csv.reader(io.StringIO(csv_text))
-    rows = sum(1 for _ in reader)
+    rows = sum(1 for row in reader if row)
     return max(0, rows - 1)
 
 
@@ -176,16 +180,23 @@ def relaxation_candidates(
             )
         )
 
-    time_candidate = Candidate(
-        key=build_key(dimension_order, filters),
-        relaxed_filters=dict(filters),
-        change_summary=f"Removed time period (was {_period_label(start_period, end_period)})",
-        drop_time=True,
-    )
+    # A drop-time candidate only helps when a period is actually in effect; with both
+    # bounds already None it would just re-probe the (already-empty) primary query and
+    # waste one of the scarce rate-limited probe slots.
+    time_candidates: list[Candidate] = []
+    if start_period or end_period:
+        time_candidates.append(
+            Candidate(
+                key=build_key(dimension_order, filters),
+                relaxed_filters=dict(filters),
+                change_summary=f"Removed time period (was {_period_label(start_period, end_period)})",
+                drop_time=True,
+            )
+        )
 
     if period_out_of_range:
-        return [time_candidate, *dim_candidates]
-    return [*dim_candidates, time_candidate]
+        return [*time_candidates, *dim_candidates]
+    return [*dim_candidates, *time_candidates]
 
 
 async def probe_nonempty(

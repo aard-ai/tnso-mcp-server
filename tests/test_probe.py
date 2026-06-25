@@ -46,6 +46,16 @@ def test_diagnose_flags_out_of_range_period():
     assert diag["period_out_of_range"]["available_years"] == ["2557", "2567"]
 
 
+def test_diagnose_flags_below_range_period():
+    # The other emptiness branch: requested span entirely BEFORE the available range.
+    diag = probe.diagnose_filters(
+        {}, AVAILABLE, DIMENSION_ORDER, TIME_RANGE, "2540", "2540"
+    )
+    assert diag["period_out_of_range"] is not None
+    assert diag["period_out_of_range"]["requested"] == ["2540", "2540"]
+    assert diag["period_out_of_range"]["available_years"] == ["2557", "2567"]
+
+
 def test_diagnose_first_available_year_is_in_range():
     diag = probe.diagnose_filters(
         {}, AVAILABLE, DIMENSION_ORDER, TIME_RANGE, "2557", "2557"
@@ -126,6 +136,12 @@ def test_count_data_rows_counts_data_rows():
     assert probe.count_data_rows(csv_text) == 3
 
 
+def test_count_data_rows_ignores_trailing_blank_lines():
+    # csv.reader yields an empty row for a blank line; it must not be counted as data.
+    assert probe.count_data_rows("H1,H2\n\n") == 0
+    assert probe.count_data_rows("H1,H2\nA,1\n\n\n") == 1
+
+
 # --------------------------------------------------------------------------- #
 # probe_nonempty
 # --------------------------------------------------------------------------- #
@@ -142,6 +158,16 @@ async def test_probe_nonempty_returns_nonempty_with_count(cache_manager):
 async def test_probe_nonempty_returns_empty_on_no_records(cache_manager):
     api = FakeApi()
     api.no_data_keys = {".10"}
+    result = await probe.probe_nonempty(
+        cache_manager, api, "DF_AGING", "1.0", ".10", "2567", "2567", first_n=1
+    )
+    assert result["status"] == "empty"
+    assert result["observation_count"] == 0
+
+
+async def test_probe_nonempty_header_only_csv_is_empty(cache_manager):
+    api = FakeApi()
+    api.header_only_keys = {".10"}  # 200 response with a 0-row (header-only) CSV
     result = await probe.probe_nonempty(
         cache_manager, api, "DF_AGING", "1.0", ".10", "2567", "2567", first_n=1
     )

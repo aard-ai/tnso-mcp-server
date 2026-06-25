@@ -227,6 +227,22 @@ Verdict: **Pass with revisions** (all 12 Pass-1 issues confirmed addressed; 2 ne
 | Outstanding gap: primary empty 404 not cached | gap | Documented as an explicit "What We're NOT Doing" scope decision (changing `k_data`'s value type is deferred). |
 | Outstanding gap: live behavior validation deferred | gap | Accepted — remains in Phase 4 manual verification (not a design question). |
 
+## Post-Implementation Adversarial Review — Disposition
+
+Multi-agent adversarial review of the implemented diff (5 dimension reviewers → each
+finding refuted by 2 independent skeptics). 12 findings; 10 survived refutation (all
+minor/nit), 2 refuted. Fixes applied in a follow-up commit:
+
+| Finding | Severity | Action |
+|---------|----------|--------|
+| Out-of-range period: dimension-drop probes re-sent the known-bad period, wasting rate-limited budget on guaranteed-empty probes | minor (was major) | Fixed — recovery now drops the period on ALL probes when `period_out_of_range` (`get_data.py`). Test `test_get_data_out_of_range_period_recovery`. |
+| Drop-time candidate duplicated the already-failed primary query when no period was in effect | minor | Fixed — `relaxation_candidates` only emits the drop-time candidate when a period is set (`probe.py`). |
+| **PLAN DEVIATION**: `check_data_availability` reported an unknown-dimension-only combo as `provably_empty`/`available:false`, but `build_key` drops unknown dims so the real query returns ALL data | minor | Fixed — `provably_empty` now triggers only on `invalid_codes`/`period_out_of_range` (the signals that actually constrain the query); unknown dims are probed and surfaced as a warning. Supersedes plan lines 27/108 which listed `unknown_dimensions` as a provably-empty signal. Tests `..._unknown_dim_probes_and_warns`. |
+| `count_data_rows` over-counted by one on a trailing/blank CSV line (false non-empty) | minor | Fixed — ignore empty rows (`probe.py`). Test `test_count_data_rows_ignores_trailing_blank_lines`. |
+| Auto-defaulted latest year not disclosed in recovery output | minor | Fixed — `default_note` threaded into `_render_empty_recovery`. Test `..._discloses_defaulted_year`. |
+| Test gaps: invalid-code line not pinned; drop-time/out-of-range not driven through handler; `_out_of_range` below-range branch; `inconclusive` status; header-only probe branch | minor/nit | Fixed — assertions strengthened + 6 tests added. |
+| Worst-case 4-call budget; 0-row probe branch "never exercised" | — | Refuted (by-design; branch is in fact exercised). |
+
 ## Review Trail
 
 - Pass 1 review: `2026-06-25_query-probing-empty-result-recovery.codex_pass1.md` (verdict: Needs rework)

@@ -33,24 +33,32 @@ logger = logging.getLogger(__name__)
 
 def _note(status: str, diagnosis: dict, observation_count: int | None) -> str:
     """One-line human summary of the availability verdict."""
+    # Unknown dimension keys are silently dropped by build_key (they don't change the
+    # query), so they never prove emptiness — they are surfaced as a warning instead.
+    unknown = diagnosis["unknown_dimensions"]
+    warn = (
+        f" Note: unknown dimension(s) {', '.join(unknown)} were ignored (not part of "
+        "this dataflow)."
+        if unknown
+        else ""
+    )
     if status == "provably_empty":
         reasons = []
         if diagnosis["invalid_codes"]:
             reasons.append(f"invalid codes in {', '.join(diagnosis['invalid_codes'])}")
-        if diagnosis["unknown_dimensions"]:
-            reasons.append(f"unknown dimensions {', '.join(diagnosis['unknown_dimensions'])}")
         if diagnosis["period_out_of_range"]:
             reasons.append("requested period is outside the available range")
         return (
             "This combination cannot match any data ("
             + "; ".join(reasons)
             + "). No network probe was issued."
+            + warn
         )
     if status == "nonempty":
-        return f"This combination returns data ({observation_count} observation(s) sampled)."
+        return f"This combination returns data ({observation_count} observation(s) sampled).{warn}"
     if status == "empty":
-        return "This combination is valid but currently returns no data."
-    return "Could not confirm availability (upstream did not answer the probe cleanly)."
+        return f"This combination is valid but currently returns no data.{warn}"
+    return f"Could not confirm availability (upstream did not answer the probe cleanly).{warn}"
 
 
 async def handle_check_data_availability(
@@ -90,11 +98,10 @@ async def handle_check_data_availability(
         params.end_period,
     )
 
-    provably_empty = bool(
-        diagnosis["invalid_codes"]
-        or diagnosis["unknown_dimensions"]
-        or diagnosis["period_out_of_range"]
-    )
+    # Only signals that actually constrain the SDMX query prove emptiness: invalid codes
+    # (absent from the dataflow's available values) and an out-of-range period. Unknown
+    # dimensions are dropped by build_key, so they don't prove emptiness — still probe.
+    provably_empty = bool(diagnosis["invalid_codes"] or diagnosis["period_out_of_range"])
 
     if provably_empty:
         status = "provably_empty"

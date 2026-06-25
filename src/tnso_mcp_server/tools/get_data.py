@@ -121,6 +121,7 @@ async def handle_get_data(
             time_range,
             start_period,
             end_period,
+            default_note=default_note,
             max_candidates=max_candidates,
             first_n=first_n,
         )
@@ -183,6 +184,7 @@ async def _render_empty_recovery(
     start_period: str | None,
     end_period: str | None,
     *,
+    default_note: str = "",
     max_candidates: int,
     first_n: int | None,
 ) -> list[TextContent]:
@@ -197,13 +199,14 @@ async def _render_empty_recovery(
         params.dimension_filters, available, dimension_order, time_range, start_period, end_period
     )
     prioritize = set(diagnosis["invalid_codes"]) | set(diagnosis["unknown_dimensions"])
+    period_out_of_range = bool(diagnosis["period_out_of_range"])
     candidates = probe.relaxation_candidates(
         params.dimension_filters,
         dimension_order,
         start_period,
         end_period,
         prioritize=prioritize,
-        period_out_of_range=bool(diagnosis["period_out_of_range"]),
+        period_out_of_range=period_out_of_range,
     )
 
     working: list[tuple] = []
@@ -211,8 +214,11 @@ async def _render_empty_recovery(
     for cand in candidates:
         if probes_issued >= max_candidates or len(working) >= 2:
             break
-        sp = None if cand.drop_time else start_period
-        ep = None if cand.drop_time else end_period
+        # When the period is the diagnosed cause, every probe must drop it — otherwise
+        # the dimension relaxations re-probe the known-bad period and are guaranteed empty.
+        drop_period = cand.drop_time or period_out_of_range
+        sp = None if drop_period else start_period
+        ep = None if drop_period else end_period
         result = await probe.probe_nonempty(
             cache, api, dataflow_id, dataflow.version, cand.key, sp, ep, first_n=first_n
         )
@@ -227,6 +233,8 @@ async def _render_empty_recovery(
         f"period {start_period or 'all'}→{end_period or 'all'} "
         "(years are Buddhist Era = Gregorian + 543).",
     ]
+    if default_note:
+        lines.append(default_note)
 
     diag_lines = _diagnosis_lines(diagnosis)
     if diag_lines:
