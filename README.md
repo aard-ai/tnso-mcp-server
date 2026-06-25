@@ -88,7 +88,7 @@ get_constraints(dataflow_id="DF_01DI_IND_AGING")
   -> dimensions POP_IND, SEX, AREA, CWT, ...; TIME_PERIOD range 2557–2567 (BE)
 get_territorial_codes(level="province", name="bangkok")
   -> { code: "10", name_en: "Krung Thep Maha Nakhon (Bangkok)", name_th: "กรุงเทพมหานคร" }
-get_data(id_dataflow="DF_01DI_IND_AGING", dimension_filters={"CWT": ["10"]}, start_period="2560", end_period="2567")
+get_data(dataflow_id="DF_01DI_IND_AGING", dimension_filters={"CWT": ["10"]}, start_period="2560", end_period="2567")
   -> TSV table of the aging index for Bangkok, 2017–2024
 ```
 

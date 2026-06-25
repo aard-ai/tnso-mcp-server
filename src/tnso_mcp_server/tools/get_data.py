@@ -39,7 +39,7 @@ async def handle_get_data(
 ) -> list[TextContent]:
     """Fetch observations as a TSV table with reproducible CSV/curl source URLs."""
     params = GetDataInput.model_validate(arguments or {})
-    dataflow_id = params.id_dataflow
+    dataflow_id = params.dataflow_id
 
     if not validate_dataflow_id(dataflow_id):
         return text_response(f"Invalid dataflow id: {dataflow_id!r}")

@@ -91,4 +91,4 @@ async def handle_get_constraints(
             {"type": "enumerated", "dimension": name, "codelist": dim.codelist, "values": values}
         )
 
-    return format_json_response({"id_dataflow": dataflow_id, "constraints": constraints})
+    return format_json_response({"dataflow_id": dataflow_id, "constraints": constraints})

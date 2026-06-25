@@ -32,7 +32,7 @@ prose, labels and section headers. When calling `get_concepts`, pass the matchin
    Thai/English name and description. Every keyword must appear (AND).
 3. **`get_constraints(dataflow_id=...)`** — ONE call returns each dimension's valid
    codes (with Thai/English labels) **in DSD order**, plus the available time range.
-4. **`get_data(id_dataflow=..., dimension_filters=..., start_period=..., end_period=...)`**
+4. **`get_data(dataflow_id=..., dimension_filters=..., start_period=..., end_period=...)`**
    — fetch the observations as a TSV table.
 
 Fast path: if you already know the codes, `get_structure` gives just the dimension

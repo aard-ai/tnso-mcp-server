@@ -85,9 +85,15 @@ class DiscoverDataflowsInput(BaseModel):
 
 
 class GetStructureInput(BaseModel):
-    """Input for get_structure: a data structure (DSD) id."""
+    """Input for get_structure: a data structure (DSD) id.
 
-    id_datastructure: str
+    Accepts ``datastructure_id`` (canonical, matches the other ``*_id`` tools) or
+    the legacy ``id_datastructure`` alias.
+    """
+
+    datastructure_id: str = Field(
+        validation_alias=AliasChoices("datastructure_id", "id_datastructure")
+    )
 
 
 class GetConstraintsInput(BaseModel):
@@ -110,9 +116,13 @@ class GetConceptsInput(BaseModel):
 
 
 class GetDataInput(BaseModel):
-    """Input for get_data: dataflow id plus optional filters, period, and layout."""
+    """Input for get_data: dataflow id plus optional filters, period, and layout.
 
-    id_dataflow: str = Field(validation_alias=AliasChoices("id_dataflow", "dataflow_id"))
+    Accepts ``dataflow_id`` (canonical, matches every other tool) or the legacy
+    ``id_dataflow`` alias.
+    """
+
+    dataflow_id: str = Field(validation_alias=AliasChoices("dataflow_id", "id_dataflow"))
     dimension_filters: dict[str, list[str]] | None = Field(
         default=None,
         validation_alias=AliasChoices("dimension_filters", "filters"),
