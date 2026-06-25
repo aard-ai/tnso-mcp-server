@@ -1,16 +1,18 @@
-# TNSO MCP Server
+# Thailand NSO MCP Server
 
 An [MCP](https://modelcontextprotocol.io) server that lets an LLM **discover, query and
 analyse Thailand's official statistics** from the **National Statistical Office (NSO,
 agency `TNSO`)** via the SDMX REST API — in natural language.
 
-This is a faithful port of [`ondata/istat_mcp_server`](https://github.com/ondata/istat_mcp_server)
-(Italy / ISTAT), re-mapped to the TNSO SDMX endpoint at
-`https://ns1-stathub.nso.go.th/rest`. Same 8-tool workflow, same two-layer caching;
+This is based off a port of [`ondata/istat_mcp_server`](https://github.com/ondata/istat_mcp_server)
+(Italy / ISTAT), adjusted to point to the Thaliand NSO SDMX endpoint at
+`https://ns1-stathub.nso.go.th/rest`. 
+
+It uses an 8-tool workflow (like the ISTAT MCP), same two-layer caching;
 the data source, agency, languages (Thai/English) and geography (Thai provinces) are
 swapped in.
 
-> **Heads-up — Buddhist Era dates.** TNSO publishes time periods in the Buddhist Era
+> **Note we use Buddhist Era dates.** TNSO publishes time periods in the Buddhist Era
 > calendar (BE = Gregorian + 543). So `2567` means **2024**. Pass `start_period` /
 > `end_period` as BE years.
 
