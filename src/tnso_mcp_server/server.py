@@ -59,9 +59,9 @@ def _tool_definitions() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "id_datastructure": {"type": "string", "description": "DSD id, e.g. 'DSD_01DI_IND_AGING'."}
+                    "datastructure_id": {"type": "string", "description": "DSD id, e.g. 'DSD_01DI_IND_AGING'."}
                 },
-                "required": ["id_datastructure"],
+                "required": ["datastructure_id"],
             },
         ),
         Tool(
@@ -117,11 +117,13 @@ def _tool_definitions() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "id_dataflow": {"type": "string", "description": "Dataflow id, e.g. 'DF_01DI_IND_AGING'."},
+                    "dataflow_id": {"type": "string", "description": "Dataflow id, e.g. 'DF_01DI_IND_AGING'."},
                     "dimension_filters": {
-                        "type": "object",
-                        "description": "Map of dimension id -> array of codes, e.g. {\"CWT\": [\"10\"], \"SEX\": [\"_T\"]}.",
-                        "additionalProperties": {"type": "array", "items": {"type": "string"}},
+                        "description": "Map of dimension id -> array of codes, e.g. {\"CWT\": [\"10\"], \"SEX\": [\"_T\"]}. May also be that object JSON-encoded as a string.",
+                        "anyOf": [
+                            {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+                            {"type": "string"},
+                        ],
                     },
                     "start_period": {"type": "string", "description": "Buddhist-era start, e.g. '2560'."},
                     "end_period": {"type": "string", "description": "Buddhist-era end, e.g. '2567'."},
@@ -132,7 +134,7 @@ def _tool_definitions() -> list[Tool]:
                     },
                     "dimension_at_observation": {"type": "string"},
                 },
-                "required": ["id_dataflow"],
+                "required": ["dataflow_id"],
             },
         ),
         Tool(

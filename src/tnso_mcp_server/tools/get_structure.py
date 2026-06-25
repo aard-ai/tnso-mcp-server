@@ -20,5 +20,5 @@ async def handle_get_structure(
 ) -> list[TextContent]:
     """Return the ordered dimensions + codelists for a data structure (DSD)."""
     params = GetStructureInput.model_validate(arguments or {})
-    dsd = await get_cached_datastructure(cache, api, params.id_datastructure)
+    dsd = await get_cached_datastructure(cache, api, params.datastructure_id)
     return format_json_response(dsd)
