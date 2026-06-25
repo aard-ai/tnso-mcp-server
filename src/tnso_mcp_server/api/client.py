@@ -36,6 +36,7 @@ from .models import (
     DataflowInfo,
     DatastructureInfo,
     DimensionInfo,
+    NoRecordsError,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,7 +181,7 @@ class ApiClient:
             if resp.status_code == 404:
                 snippet = resp.text[:300]
                 if "NoRecordsFound" in snippet or "No Results Found" in snippet:
-                    raise ApiError(
+                    raise NoRecordsError(
                         "No records found. Check the dataflow id, dimension filters, "
                         "and time period (TNSO years are Buddhist Era, e.g. 2567 = 2024).",
                         status_code=404,
@@ -218,6 +219,7 @@ class ApiClient:
         end_period: str | None = None,
         detail: str = "full",
         dimension_at_observation: str | None = None,
+        first_n_observations: int | None = None,
     ) -> dict[str, str]:
         """Build the SDMX data query params shared by the real fetch and the footer URLs."""
         query: dict[str, str] = {}
@@ -229,6 +231,8 @@ class ApiClient:
             query["detail"] = detail
         if dimension_at_observation:
             query["dimensionAtObservation"] = dimension_at_observation
+        if first_n_observations and first_n_observations > 0:
+            query["firstNObservations"] = str(first_n_observations)
         return query
 
     def data_csv_url(
@@ -428,8 +432,15 @@ class ApiClient:
         end_period: str | None = None,
         detail: str = "full",
         dimension_at_observation: str | None = None,
+        first_n_observations: int | None = None,
     ) -> str:
-        """Fetch observations as native SDMX-CSV text for the given flowRef + key."""
-        params = self._data_query(start_period, end_period, detail, dimension_at_observation)
+        """Fetch observations as native SDMX-CSV text for the given flowRef + key.
+
+        ``first_n_observations`` (when set) bounds the payload to the first N
+        observations per series — used by cheap non-empty probes, not full fetches.
+        """
+        params = self._data_query(
+            start_period, end_period, detail, dimension_at_observation, first_n_observations
+        )
         path = f"data/{self.flow_ref(dataflow_id, version)}/{key or 'all'}"
         return await self._get(path, params=params, accept=CSV_ACCEPT)

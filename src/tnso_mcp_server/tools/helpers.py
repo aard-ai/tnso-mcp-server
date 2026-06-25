@@ -110,6 +110,23 @@ def k_data(
     )
 
 
+def k_probe(
+    agency: str,
+    dataflow_id: str,
+    version: str | None,
+    key: str,
+    sp: Any,
+    ep: Any,
+    first_n: Any,
+) -> str:
+    """Cache key for a bounded non-empty probe.
+
+    Distinct ``probe:`` namespace from ``k_data`` so a probe's truncated
+    (``firstNObservations``) payload never satisfies a later full ``get_data``.
+    """
+    return f"probe:{agency}:{dataflow_id}:{version or 'latest'}:{key}:{sp}:{ep}:{first_n}"
+
+
 # --------------------------------------------------------------------------- #
 # Cached fetchers — store plain dicts/lists, reconstruct models on read.
 # --------------------------------------------------------------------------- #

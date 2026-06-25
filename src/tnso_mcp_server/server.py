@@ -15,6 +15,7 @@ from .api.models import ApiError
 from .cache.manager import CacheManager
 from .cache.memory import MemoryCache
 from .cache.persistent import PersistentCache
+from .tools.check_data_availability import handle_check_data_availability
 from .tools.discover_dataflows import handle_discover_dataflows
 from .tools.get_cache_diagnostics import handle_get_cache_diagnostics
 from .tools.get_codelist_description import handle_get_codelist_description
@@ -24,6 +25,7 @@ from .tools.get_data import handle_get_data
 from .tools.get_structure import handle_get_structure
 from .tools.get_territorial_codes import handle_get_territorial_codes
 from .tools.helpers import configure_cache_ttls
+from .tools.probe import DEFAULT_PROBE_FIRST_N, DEFAULT_PROBE_MAX_CANDIDATES
 from .utils.blacklist import DataflowBlacklist
 from .utils.logging import setup_logging
 
@@ -112,6 +114,8 @@ def _tool_definitions() -> list[Tool]:
                 "Supports dimension filtering and a time range. Omit dimensions from "
                 "dimension_filters to get all their values; pass multiple codes per dimension as an "
                 "array. If no period is given, the latest available year is returned. "
+                "If the query matches no data, returns a diagnosis (invalid codes / out-of-range "
+                "period) and up to 2 verified non-empty alternative queries. "
                 "IMPORTANT: start_period/end_period are Buddhist Era years (e.g. 2567 = 2024)."
             ),
             inputSchema={
@@ -133,6 +137,32 @@ def _tool_definitions() -> list[Tool]:
                         "default": "full",
                     },
                     "dimension_at_observation": {"type": "string"},
+                },
+                "required": ["dataflow_id"],
+            },
+        ),
+        Tool(
+            name="check_data_availability",
+            description=(
+                "Pre-flight check: does a specific dimension/period combination return any rows? "
+                "Returns {available, status, observation_count, diagnosis}. If the combo provably "
+                "cannot match (invalid codes or out-of-range period) it answers without a network "
+                "call; otherwise it runs one cheap bounded probe. Use before get_data to avoid "
+                "empty results. Periods are Buddhist Era (BE = Gregorian + 543)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dataflow_id": {"type": "string", "description": "Dataflow id, e.g. 'DF_01DI_IND_AGING'."},
+                    "dimension_filters": {
+                        "description": "Map of dimension id -> array of codes, e.g. {\"CWT\": [\"10\"], \"SEX\": [\"_T\"]}. May also be that object JSON-encoded as a string.",
+                        "anyOf": [
+                            {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+                            {"type": "string"},
+                        ],
+                    },
+                    "start_period": {"type": "string", "description": "Buddhist-era start, e.g. '2560'."},
+                    "end_period": {"type": "string", "description": "Buddhist-era end, e.g. '2567'."},
                 },
                 "required": ["dataflow_id"],
             },
@@ -199,6 +229,13 @@ def create_server() -> Server:
     )
     blacklist = DataflowBlacklist()
 
+    # Empty-result probe budget. PROBE_FIRST_N_OBSERVATIONS=0 disables the
+    # firstNObservations payload-trim for upstreams that reject the parameter.
+    probe_max_candidates = int(
+        os.getenv("PROBE_MAX_CANDIDATES", str(DEFAULT_PROBE_MAX_CANDIDATES))
+    )
+    probe_first_n = int(os.getenv("PROBE_FIRST_N_OBSERVATIONS", str(DEFAULT_PROBE_FIRST_N)))
+
     server: Server = Server("tnso-mcp-server")
 
     @server.list_tools()
@@ -222,7 +259,18 @@ def create_server() -> Server:
             if name == "get_concepts":
                 return await handle_get_concepts(args, cache, api)
             if name == "get_data":
-                return await handle_get_data(args, cache, api, blacklist)
+                return await handle_get_data(
+                    args,
+                    cache,
+                    api,
+                    blacklist,
+                    max_candidates=probe_max_candidates,
+                    first_n=probe_first_n,
+                )
+            if name == "check_data_availability":
+                return await handle_check_data_availability(
+                    args, cache, api, blacklist, first_n=probe_first_n
+                )
             if name == "get_cache_diagnostics":
                 return await handle_get_cache_diagnostics(args, cache, api)
             if name == "get_territorial_codes":
