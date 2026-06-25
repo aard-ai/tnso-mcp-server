@@ -199,3 +199,26 @@ def test_parse_content_constraints_merges_regions_and_skips_excludes():
     assert idx["DF_MULTI"]["CWT"] == ["10", "20"]
     # ...and an include="false" (exclude) region never contributes "available" codes.
     assert "99" not in idx["DF_MULTI"]["CWT"]
+
+
+CONTENTCONSTRAINT_NS_REF_XML = f"""<?xml version="1.0" encoding="utf-8"?>
+<message:Structure {NS}>
+ <message:Structures><structure:Constraints>
+  <structure:ContentConstraint id="CR_A_DF_NSREF" type="Actual">
+   <structure:ConstraintAttachment>
+     <structure:Dataflow>
+       <common:Ref id="DF_NSREF" version="1.0" agencyID="TNSO" class="Dataflow"/>
+     </structure:Dataflow>
+   </structure:ConstraintAttachment>
+   <structure:CubeRegion include="true">
+     <common:KeyValue id="CWT"><common:Value>10</common:Value></common:KeyValue>
+   </structure:CubeRegion>
+  </structure:ContentConstraint>
+ </structure:Constraints></message:Structures>
+</message:Structure>"""
+
+
+def test_parse_content_constraints_resolves_namespaced_ref():
+    # Some SDMX servers namespace the attachment Ref (<common:Ref>) — it must still resolve.
+    idx = ApiClient._parse_content_constraints(CONTENTCONSTRAINT_NS_REF_XML)
+    assert idx["DF_NSREF"]["CWT"] == ["10"]

@@ -48,9 +48,14 @@ async def handle_discover_dataflows(
 
         dataflows = [df for df in dataflows if matches(df)]
 
-    # Drop dimensions with no codes: an empty list would match vacuously (set() <= anything),
-    # so an effectively-empty `covers` must behave as "no coverage filter", not "match all".
-    coverage = {dim: codes for dim, codes in (params.covers or {}).items() if codes}
+    # Normalize user input: trim whitespace on dimension ids and codes (upstream values are
+    # already stripped), and drop dimensions left with no codes — an empty list would match
+    # vacuously (set() <= anything), so an effectively-empty `covers` behaves as no filter.
+    coverage: dict[str, list[str]] = {}
+    for dim, codes in (params.covers or {}).items():
+        cleaned = [c.strip() for c in codes if c and c.strip()]
+        if cleaned:
+            coverage[dim.strip()] = cleaned
     if coverage:
         # Keep only dataflows whose published availability includes EVERY requested code,
         # for EVERY requested dimension — i.e. the data is actually present, not merely a

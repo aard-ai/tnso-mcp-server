@@ -105,8 +105,9 @@ class DiscoverDataflowsInput(BaseModel):
     A dataflow matches the keywords if it contains *any* of them (OR); set ``match_all``
     to require *every* keyword (AND). ``covers`` additionally keeps only dataflows whose
     published availability includes the given codes, e.g. ``{"CWT": ["10", "20"]}`` ->
-    only dataflows that actually carry both Bangkok and Chon Buri. ``covers`` may be a
-    dict or its JSON-encoded string form.
+    only dataflows that actually carry both Bangkok and Chon Buri. Coverage is checked
+    **per dimension** (marginal availability), not as a joint combination. ``covers`` may
+    be a dict or its JSON-encoded string form.
     """
 
     keywords: str = ""

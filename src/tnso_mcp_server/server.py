@@ -66,10 +66,10 @@ def _tool_definitions() -> list[Tool]:
                     },
                     "covers": {
                         "description": (
-                            "Map of dimension id -> codes the dataflow must have data for "
-                            "(every code, every dimension). E.g. {\"CWT\": [\"10\", \"20\"]} "
-                            "keeps only dataflows whose data covers both provinces. May also "
-                            "be that object JSON-encoded as a string."
+                            "Map of dimension id -> codes the dataflow must have data for, "
+                            "checked per dimension (marginal availability). E.g. {\"CWT\": "
+                            "[\"10\", \"20\"]} keeps only dataflows whose data covers both "
+                            "provinces. May also be that object JSON-encoded as a string."
                         ),
                         "anyOf": [
                             {

@@ -412,12 +412,21 @@ class ApiClient:
         overwriting. ``include="false"`` regions describe *excluded* codes and are skipped,
         and ``TimeRange``-only dimensions (no plain ``Value``) are omitted — mirroring
         :meth:`_parse_availableconstraint`.
+
+        The result is **marginal** availability: per-dimension code sets, not the joint
+        combinations that co-occur. TNSO publishes exactly one inclusive region per
+        constraint listing each dimension's values independently, so for the per-dimension
+        coverage queries this backs (e.g. "has data for CWT 10 and 20") it is exact. It does
+        not assert that a specific cross-dimension combination (CWT=10 AND SEX=F) co-occurs.
+        Keyed by dataflow id (the catalogue carries one version per id).
         """
         root = etree.fromstring(xml.encode("utf-8"))
         out: dict[str, dict[str, list[str]]] = {}
         for cc in root.iterfind(".//structure:ContentConstraint", NS):
-            ref = cc.find(".//structure:ConstraintAttachment/structure:Dataflow/Ref", NS)
-            df_id = ref.get("id", "") if ref is not None else ""
+            attach = cc.find(".//structure:ConstraintAttachment/structure:Dataflow", NS)
+            # Resolve <Ref> by local-name so a namespaced <common:Ref> also matches.
+            refs = attach.xpath("./*[local-name()='Ref']") if attach is not None else []
+            df_id = refs[0].get("id", "") if refs else ""
             if not df_id:
                 continue
             dims = out.setdefault(df_id, {})
