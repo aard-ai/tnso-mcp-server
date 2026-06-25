@@ -406,8 +406,11 @@ class ApiClient:
         """Parse the bulk contentconstraint document into ``{dataflow_id: {dim: [codes]}}``.
 
         Each ``ContentConstraint`` is attached to one dataflow (``ConstraintAttachment >
-        Dataflow > Ref``) and carries a ``CubeRegion`` of ``KeyValue`` dimensions.
-        ``TimeRange``-only dimensions (no plain ``Value``) are omitted, mirroring
+        Dataflow > Ref``) and carries one or more ``CubeRegion`` blocks of ``KeyValue``
+        dimensions. Codes are accumulated (deduped, first-seen order) across every included
+        region and across repeated constraints for the same dataflow, so nothing is lost to
+        overwriting. ``include="false"`` regions describe *excluded* codes and are skipped,
+        and ``TimeRange``-only dimensions (no plain ``Value``) are omitted — mirroring
         :meth:`_parse_availableconstraint`.
         """
         root = etree.fromstring(xml.encode("utf-8"))
@@ -417,15 +420,21 @@ class ApiClient:
             df_id = ref.get("id", "") if ref is not None else ""
             if not df_id:
                 continue
-            dims: dict[str, list[str]] = {}
-            for kv in cc.iterfind(".//structure:CubeRegion/common:KeyValue", NS):
-                dim = kv.get("id", "")
-                values = [(v.text or "").strip() for v in kv.findall("common:Value", NS) if v.text]
-                if dim and values:
-                    dims[dim] = values
-            if dims:
-                out[df_id] = dims
-        return out
+            dims = out.setdefault(df_id, {})
+            for region in cc.iterfind(".//structure:CubeRegion", NS):
+                if region.get("include", "true") == "false":
+                    continue  # an exclude region lists codes that are NOT available
+                for kv in region.findall("common:KeyValue", NS):
+                    dim = kv.get("id", "")
+                    values = [(v.text or "").strip() for v in kv.findall("common:Value", NS) if v.text]
+                    if not (dim and values):
+                        continue
+                    bucket = dims.setdefault(dim, [])
+                    for val in values:
+                        if val not in bucket:
+                            bucket.append(val)
+        # Drop dataflows whose only regions were excludes / time-ranges (left with no dims).
+        return {df: dims for df, dims in out.items() if dims}
 
     async def get_conceptschemes(self) -> list[ConceptSchemeInfo]:
         """Fetch and parse every TNSO concept scheme (used by the concept lookup)."""

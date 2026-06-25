@@ -227,6 +227,15 @@ async def test_discover_covers_accepts_json_string(cache_manager):
     assert json.loads(_text(res))["count"] == 1
 
 
+async def test_discover_covers_empty_codes_is_a_noop(cache_manager):
+    api = FakeApi()
+    # An empty code list must NOT match vacuously: covers={"CWT": []} == no coverage filter.
+    res = await handle_discover_dataflows(
+        {"covers": {"CWT": []}}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 1  # DF_AGING still returned (filter is a no-op)
+
+
 async def test_constraints_merges_values_and_labels(cache_manager):
     api = FakeApi()
     res = await handle_get_constraints({"dataflow_id": "DF_AGING"}, cache_manager, api)

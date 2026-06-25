@@ -65,13 +65,23 @@ def _tool_definitions() -> list[Tool]:
                         ),
                     },
                     "covers": {
-                        "type": "object",
-                        "additionalProperties": {"type": "array", "items": {"type": "string"}},
                         "description": (
                             "Map of dimension id -> codes the dataflow must have data for "
                             "(every code, every dimension). E.g. {\"CWT\": [\"10\", \"20\"]} "
-                            "keeps only dataflows whose data covers both provinces."
+                            "keeps only dataflows whose data covers both provinces. May also "
+                            "be that object JSON-encoded as a string."
                         ),
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "minItems": 1,
+                                },
+                            },
+                            {"type": "string"},
+                        ],
                     },
                 },
             },

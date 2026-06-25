@@ -48,7 +48,10 @@ async def handle_discover_dataflows(
 
         dataflows = [df for df in dataflows if matches(df)]
 
-    if params.covers:
+    # Drop dimensions with no codes: an empty list would match vacuously (set() <= anything),
+    # so an effectively-empty `covers` must behave as "no coverage filter", not "match all".
+    coverage = {dim: codes for dim, codes in (params.covers or {}).items() if codes}
+    if coverage:
         # Keep only dataflows whose published availability includes EVERY requested code,
         # for EVERY requested dimension — i.e. the data is actually present, not merely a
         # dimension the DSD declares. One bulk fetch (cached) answers this for all dataflows.
@@ -57,10 +60,7 @@ async def handle_discover_dataflows(
         def covered(df) -> bool:
             """True if the dataflow's availability covers all requested dim/codes."""
             avail = availability.get(df.id, {})
-            return all(
-                set(codes) <= set(avail.get(dim, []))
-                for dim, codes in params.covers.items()
-            )
+            return all(set(codes) <= set(avail.get(dim, [])) for dim, codes in coverage.items())
 
         dataflows = [df for df in dataflows if covered(df)]
 

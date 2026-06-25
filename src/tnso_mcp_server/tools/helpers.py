@@ -206,13 +206,16 @@ async def get_cached_availability(
 
     One upstream call (``contentconstraint/<agency>``) covers every dataflow, so coverage
     filtering in ``discover_dataflows`` never fans out to per-dataflow constraint fetches.
+    Cached with ``DATA_TTL`` (not ``METADATA_TTL``): availability reflects which
+    observations exist, so it should refresh on roughly the data cadence, not the
+    structure cadence.
     """
     async def fetch() -> dict:
         """Fetch the bulk availability index (already a cache-friendly plain dict)."""
         return await api.get_content_constraints()
 
     raw = await cache.get_or_fetch(
-        k_content_constraints(api.agency), fetch, persistent_ttl=METADATA_TTL
+        k_content_constraints(api.agency), fetch, persistent_ttl=DATA_TTL
     )
     return raw or {}
 

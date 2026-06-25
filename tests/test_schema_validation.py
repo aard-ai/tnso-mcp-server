@@ -58,6 +58,8 @@ def test_every_required_name_is_declared_in_properties():
         ("discover_dataflows", {"keywords": "population, aging"}),
         ("discover_dataflows", {"keywords": "education, health", "match_all": True}),
         ("discover_dataflows", {"covers": {"CWT": ["10", "20"]}}),
+        # covers as a JSON-encoded string: the schema must accept what the model coerces.
+        ("discover_dataflows", {"covers": '{"CWT": ["10", "20"]}'}),
         ("get_structure", {"datastructure_id": "DSD_01DI_IND_AGING"}),
         ("get_constraints", {"dataflow_id": "DF_01DI_IND_AGING"}),
         ("get_codelist_description", {"codelist_id": "CL_CWT"}),
@@ -114,6 +116,7 @@ def test_valid_payloads_pass_schema_validation(tool_name, arguments):
         ("check_data_availability", {"dataflow_id": "X", "dimension_filters": {"SEX": "T"}}),  # value not an array
         ("get_territorial_codes", {"level": "galaxy"}),           # level not in enum
         ("get_cache_diagnostics", {"debug": "yes"}),              # debug not a boolean
+        ("discover_dataflows", {"covers": {"CWT": []}}),          # empty code list (minItems: 1)
     ],
 )
 def test_invalid_payloads_are_rejected_by_schema(tool_name, arguments):
