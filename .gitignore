@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+dist/
+build/
+# Runtime cache/log dirs (anchored to the package root so they do NOT match the
+# src/tnso_mcp_server/cache/ source module).
+/cache/
+/log/
+.pytest_cache/
+.env
+# Keep the committed template (the repo-root .gitignore's `.env*` would hide it).
+!.env.example
