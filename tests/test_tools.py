@@ -159,6 +159,29 @@ async def test_discover_no_match(cache_manager):
     assert json.loads(_text(res))["count"] == 0
 
 
+async def test_discover_keywords_or_by_default(cache_manager):
+    api = FakeApi()
+    # "zzz" is absent, but OR semantics means the present "aging" still matches.
+    res = await handle_discover_dataflows(
+        {"keywords": "aging, zzz"}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 1
+
+
+async def test_discover_match_all_requires_every_keyword(cache_manager):
+    api = FakeApi()
+    # match_all=True (AND): "zzz" is absent, so nothing matches...
+    res = await handle_discover_dataflows(
+        {"keywords": "aging, zzz", "match_all": True}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 0
+    # ...but both "aging" and "index" appear in "Aging Index", so it matches.
+    res = await handle_discover_dataflows(
+        {"keywords": "aging, index", "match_all": True}, cache_manager, api, DataflowBlacklist([])
+    )
+    assert json.loads(_text(res))["count"] == 1
+
+
 async def test_constraints_merges_values_and_labels(cache_manager):
     api = FakeApi()
     res = await handle_get_constraints({"dataflow_id": "DF_AGING"}, cache_manager, api)

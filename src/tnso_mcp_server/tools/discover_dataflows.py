@@ -23,7 +23,11 @@ async def handle_discover_dataflows(
     api: ApiClient,
     blacklist: DataflowBlacklist,
 ) -> list[TextContent]:
-    """Return dataflows matching all keywords (blacklisted ones excluded)."""
+    """Return dataflows matching the keywords (blacklisted ones excluded).
+
+    Any keyword suffices by default (OR); pass ``match_all`` to require every
+    keyword (AND).
+    """
     params = DiscoverDataflowsInput.model_validate(arguments or {})
     keywords = validate_keywords(params.keywords)
 
@@ -31,13 +35,16 @@ async def handle_discover_dataflows(
     dataflows = blacklist.filter_dataflows(dataflows)
 
     if keywords:
+        # OR across keywords by default; AND when match_all is set. Either way a
+        # single keyword is OR-ed across the dataflow's fields (the haystack).
+        reducer = all if params.match_all else any
+
         def matches(df) -> bool:
-            """True if every keyword appears in the dataflow's searchable text."""
+            """True if the keywords match the dataflow's searchable text."""
             haystack = " ".join(
                 [df.id, df.name_en, df.name_th, df.description_en, df.description_th, df.id_datastructure]
             ).lower()
-            # Every keyword must appear somewhere (AND across keywords, OR across fields).
-            return all(k in haystack for k in keywords)
+            return reducer(k in haystack for k in keywords)
 
         dataflows = [df for df in dataflows if matches(df)]
 

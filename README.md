@@ -23,7 +23,7 @@ swapped in.
 
 | Tool | What it does |
 |---|---|
-| `discover_dataflows` | Search ~900 TNSO dataflows by keyword (Thai/English). |
+| `discover_dataflows` | Search ~900 TNSO dataflows by keyword (Thai/English); any keyword matches (OR), or `match_all` for AND. |
 | `get_structure` | Dimensions + codelists for a data structure (DSD). |
 | `get_constraints` | Valid values (with labels) per dimension + available time range. **Start here.** |
 | `get_codelist_description` | Thai/English labels for every code in a codelist. |

@@ -40,15 +40,28 @@ def _tool_definitions() -> list[Tool]:
             description=(
                 "Discover available TNSO (Thailand National Statistical Office) dataflows. "
                 "Optionally filter by comma-separated keywords (matched against id, Thai/English "
-                "name and description). Start here to find a dataset, then call get_constraints."
+                "name and description). A dataflow matches if it contains ANY of the keywords "
+                "(OR); set match_all=true to require ALL keywords (AND). "
+                "Start here to find a dataset, then call get_constraints."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "keywords": {
                         "type": "string",
-                        "description": "Comma-separated keywords, e.g. 'population, aging' or 'labour'.",
-                    }
+                        "description": (
+                            "Comma-separated keywords, e.g. 'population, aging' or 'labour'. "
+                            "Any keyword matching is sufficient by default (OR), so combine "
+                            "unrelated terms to broaden, not narrow, the search."
+                        ),
+                    },
+                    "match_all": {
+                        "type": "boolean",
+                        "description": (
+                            "Require every keyword to appear (AND) instead of any (OR). "
+                            "Default false."
+                        ),
+                    },
                 },
             },
         ),
