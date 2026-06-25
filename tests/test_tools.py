@@ -95,6 +95,8 @@ class FakeApi:
             "key": key,
             "start": start_period,
             "end": end_period,
+            "detail": detail,
+            "dimension_at_observation": dimension_at_observation,
             "first_n": first_n_observations,
         }
         self.data_calls.append(self.last_data_call)
@@ -286,6 +288,25 @@ async def test_get_data_recovery_discloses_defaulted_year(cache_manager):
     assert "defaulted to latest available year" in txt
 
 
+async def test_get_data_recovery_probe_matches_requested_detail(cache_manager):
+    api = FakeApi()
+    api.no_data_keys = {".10"}  # primary query is empty -> recovery probes relaxations
+    await handle_get_data(
+        {
+            "id_dataflow": "DF_AGING",
+            "dimension_filters": {"CWT": ["10"]},
+            "detail": "serieskeysonly",
+        },
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    # Every upstream call (primary + recovery probes) must use the caller's detail, so a
+    # "verified alternative" is checked at the exact shape its advertised URL will request.
+    assert api.data_calls
+    assert all(c["detail"] == "serieskeysonly" for c in api.data_calls)
+
+
 async def test_get_data_empty_probe_count_bounded(cache_manager):
     api = FakeApi()
     # primary + every relaxation is empty, forcing the loop to exhaust the budget.
@@ -353,7 +374,27 @@ async def test_check_data_availability_invalid_code_skips_probe(cache_manager):
     assert data["available"] is False
     assert data["status"] == "provably_empty"
     assert "CWT" in data["diagnosis"]["invalid_codes"]
+    assert data["diagnosis"]["fully_invalid_dims"] == ["CWT"]  # every requested code invalid
     assert api.data_call_count == 0  # no network probe was issued
+
+
+async def test_check_data_availability_partial_invalid_codes_probes(cache_manager):
+    api = FakeApi()
+    # CWT 10 is valid, 999 is not. Codes within a dimension are OR-ed (key "10+999"), so
+    # the combo can still return rows for 10 — it must be probed, not declared empty.
+    res = await handle_check_data_availability(
+        {"dataflow_id": "DF_AGING", "dimension_filters": {"CWT": ["10", "999"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    data = json.loads(_text(res))
+    assert data["status"] == "nonempty"
+    assert data["available"] is True
+    assert api.data_call_count == 1  # it DID probe (no provably-empty shortcut)
+    assert "CWT" in data["diagnosis"]["invalid_codes"]  # 999 still reported
+    assert data["diagnosis"]["fully_invalid_dims"] == []  # but the dim is not fully invalid
+    assert "still probed" in data["note"]  # partial-invalid surfaced as a warning
 
 
 async def test_check_data_availability_out_of_range_period_skips_probe(cache_manager):
