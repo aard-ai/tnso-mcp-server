@@ -44,7 +44,14 @@ def _tool_definitions() -> list[Tool]:
                 "them (OR); set match_all=true to require ALL (AND). 'covers' additionally keeps "
                 "only dataflows that actually have data for the given dimension codes — e.g. "
                 "covers={\"CWT\": [\"10\", \"20\"]} returns the dataflows carrying both Bangkok "
-                "and Chon Buri. Start here, then call get_constraints."
+                "and Chon Buri. Use this when you're hunting an indicator — the topic or "
+                "measure (population, income, tourism). When the question is instead about "
+                "the entities being measured — which provinces or groups a dataset covers, or "
+                "whether specific codes exist (e.g. a comparative profile of two provinces, "
+                "CWT 10 vs 20) — that is a get_constraints question: keyword text names "
+                "indicators, not the codes a dataflow carries, so filter discovery with covers "
+                "and verify the members with get_constraints. Start here, then call "
+                "get_constraints before get_data."
             ),
             inputSchema={
                 "type": "object",
@@ -104,7 +111,10 @@ def _tool_definitions() -> list[Tool]:
             name="get_constraints",
             description=(
                 "Get all valid dimension values (with Thai/English labels) and the available time "
-                "range for a dataflow. One call returns everything needed to build a get_data query. "
+                "range for a dataflow — i.e. the entities it measures (provinces, cities, age/sex "
+                "groups, periods). Reach for this when the question is about those members — which "
+                "exist, or comparing specific ones — rather than about finding a topic. One call "
+                "returns everything needed to build a get_data query. "
                 "Time periods are Buddhist Era (BE = Gregorian + 543)."
             ),
             inputSchema={
