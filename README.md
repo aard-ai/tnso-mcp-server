@@ -100,18 +100,5 @@ uv run pytest -m integration         # live tests against the real TNSO API
 uv run pytest                         # everything
 ```
 
-## Mapping from the ISTAT original
-
-| Concern | ISTAT | TNSO |
-|---|---|---|
-| Base URL | `esploradati.istat.it/SDMXWS/rest` | `ns1-stathub.nso.go.th/rest` |
-| Agency | `IT1` | `TNSO` |
-| Data flowRef | bare `{df}` + `/ALL/` | comma form `TNSO,{df},{ver}/{key}` |
-| Languages | Italian / English | Thai / English |
-| Geography | `REF_AREA` (bundled DuckDB) | `AREA` / `CWT` / `AMPHOE` (live codelists) |
-| Calendar | Gregorian | Buddhist Era (CE + 543) |
-| Data format | SDMX-XML → TSV | SDMX-CSV → TSV |
-
-## License
 
 MIT (same as the upstream `istat_mcp_server`).
