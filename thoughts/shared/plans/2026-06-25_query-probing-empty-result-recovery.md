@@ -78,14 +78,14 @@ Add the building blocks with zero behavior change to existing tools, so the buil
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_probe.py` (new file added in this phase — see below) passes.
-- [ ] `uv run pytest -m "not integration"` — full suite still green (no behavior change to existing tools). (`integration` is the repo's registered marker for live tests, `pyproject.toml:39-41`; the live file is marked `pytest.mark.integration` at `tests/test_integration_live.py:14`. The repo ships no linter, so no lint command is asserted.)
+- [x] `uv run pytest tests/test_probe.py` (new file added in this phase — see below) passes.
+- [x] `uv run pytest -m "not integration"` — full suite still green (no behavior change to existing tools). (`integration` is the repo's registered marker for live tests, `pyproject.toml:39-41`; the live file is marked `pytest.mark.integration` at `tests/test_integration_live.py:14`. The repo ships no linter, so no lint command is asserted.)
 
 #### New tests this phase (`tests/test_probe.py`):
-- [ ] `diagnose_filters` flags a code absent from `available` and ignores a code present in it; flags a filter key absent from `dimension_order` under `unknown_dimensions`; flags an out-of-range period using year-normalized bounds (e.g. request `2599` against available `("2557-01-01T00:00:00","2567-12-31T23:59:59")`), and does NOT flag the first available year `2557`.
-- [ ] `relaxation_candidates` orders prioritized/invalid dims first, geo dims (`AREA`/`CWT`) last, drop-time last; never relaxes the time dimension as a normal dimension; the drop-time candidate's `change_summary` includes the original period; **and when `period_out_of_range=True`, the drop-time candidate is first**.
-- [ ] `count_data_rows` returns 0 for header-only CSV, N for N data rows.
-- [ ] `probe_nonempty` returns `empty` when `FakeApi.get_data_csv` raises `NoRecordsError`, `nonempty` when it returns rows, `inconclusive` when it raises a generic `ApiError`; the result is cached (a second call does not re-invoke the fake — assert via a call counter). When `first_n=0`, `FakeApi.get_data_csv` is called with `first_n_observations` omitted/`None`. Extend `FakeApi.get_data_csv` to accept and record `first_n_observations=None` and to vary its return by `key` (raise `NoRecordsError` for the designated "no-data" key, rows otherwise).
+- [x] `diagnose_filters` flags a code absent from `available` and ignores a code present in it; flags a filter key absent from `dimension_order` under `unknown_dimensions`; flags an out-of-range period using year-normalized bounds (e.g. request `2599` against available `("2557-01-01T00:00:00","2567-12-31T23:59:59")`), and does NOT flag the first available year `2557`.
+- [x] `relaxation_candidates` orders prioritized/invalid dims first, geo dims (`AREA`/`CWT`) last, drop-time last; never relaxes the time dimension as a normal dimension; the drop-time candidate's `change_summary` includes the original period; **and when `period_out_of_range=True`, the drop-time candidate is first**.
+- [x] `count_data_rows` returns 0 for header-only CSV, N for N data rows.
+- [x] `probe_nonempty` returns `empty` when `FakeApi.get_data_csv` raises `NoRecordsError`, `nonempty` when it returns rows, `inconclusive` when it raises a generic `ApiError`; the result is cached (a second call does not re-invoke the fake — assert via a call counter). When `first_n=0`, `FakeApi.get_data_csv` is called with `first_n_observations` omitted/`None`. Extend `FakeApi.get_data_csv` to accept and record `first_n_observations=None` and to vary its return by `key` (raise `NoRecordsError` for the designated "no-data" key, rows otherwise).
 
 #### Manual Verification:
 - [ ] None for this phase (no user-facing change).
@@ -114,9 +114,9 @@ Expose a standalone pre-flight probe: confirm whether a specific filter combinat
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_tools.py -k check_data_availability` passes (new tests: available combo → `available: true` with count; empty combo via `FakeApi` no-data key → `available: false`; **invalid code → `available: false`, status `provably_empty`, diagnosis lists it, and `FakeApi.get_data_csv` is NOT called** — assert via the call counter, proving the no-probe shortcut).
-- [ ] `uv run pytest tests/test_schema_validation.py` passes — add `check_data_availability` to the valid/invalid payload parametrizations (including a valid payload that carries `start_period`/`end_period`, proving the period fields are advertised) and to the canonical-id consistency list (`ID_CASES`).
-- [ ] `uv run pytest -m "not integration"` green.
+- [x] `uv run pytest tests/test_tools.py -k check_data_availability` passes (new tests: available combo → `available: true` with count; empty combo via `FakeApi` no-data key → `available: false`; **invalid code → `available: false`, status `provably_empty`, diagnosis lists it, and `FakeApi.get_data_csv` is NOT called** — assert via the call counter, proving the no-probe shortcut).
+- [x] `uv run pytest tests/test_schema_validation.py` passes — add `check_data_availability` to the valid/invalid payload parametrizations (including a valid payload that carries `start_period`/`end_period`, proving the period fields are advertised) and to the canonical-id consistency list (`ID_CASES`).
+- [x] `uv run pytest -m "not integration"` green.
 
 #### Manual Verification:
 - [ ] Live MCP call `check_data_availability(dataflow_id="DF_01DI_IND_AGING", dimension_filters={"SEX":["_T"],"AREA":["TH"],"CWT":["_T"]})` → `available: true`.
@@ -151,8 +151,8 @@ Wire the engine into `get_data`: on an empty result (either `NoRecordsError` or 
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_tools.py -k "get_data and empty"` passes — new tests: (a) `NoRecordsError` on the primary key triggers recovery and the output contains a working alternative + its URL; (b) a 0-row CSV triggers the same; (c) an invalid code is named in the diagnosis; (d) probe count never exceeds `max_candidates` (assert via `FakeApi` call counter). Drive via `FakeApi` raising `NoRecordsError` for the requested key and returning rows for the relaxed key.
-- [ ] `uv run pytest -m "not integration"` green; existing `test_get_data_defaults_to_latest_year_and_renders_tsv` and `test_get_data_builds_key_and_passes_period` still pass unchanged (happy path untouched).
+- [x] `uv run pytest tests/test_tools.py -k "get_data and empty"` passes — new tests: (a) `NoRecordsError` on the primary key triggers recovery and the output contains a working alternative + its URL; (b) a 0-row CSV triggers the same; (c) an invalid code is named in the diagnosis; (d) probe count never exceeds `max_candidates` (assert via `FakeApi` call counter). Drive via `FakeApi` raising `NoRecordsError` for the requested key and returning rows for the relaxed key.
+- [x] `uv run pytest -m "not integration"` green; existing `test_get_data_defaults_to_latest_year_and_renders_tsv` and `test_get_data_builds_key_and_passes_period` still pass unchanged (happy path untouched).
 
 #### Manual Verification:
 - [ ] Live `get_data(dataflow_id="DF_01DI_IND_AGING", dimension_filters={"SEX":["_T"],"AREA":["_T"]})` now returns a diagnosis + at least one working alternative (e.g. `AREA=TH`), not `Error in get_data: No records found`.
@@ -178,8 +178,8 @@ Make the probe budget configurable, document the new behavior, and verify the tw
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `uv run pytest -m "not integration"` — full suite green (target: prior 63 + the new probe/availability/recovery tests).
-- [ ] A test asserts that with `first_n=0` the probe omits `firstNObservations` (the `FakeApi` records `first_n_observations is None`), and with `first_n=1` it passes `1` — proving the `PROBE_FIRST_N_OBSERVATIONS=0` fallback path works. (Repo ships no linter, so no lint command is asserted.)
+- [x] `uv run pytest -m "not integration"` — full suite green (93 passed: prior 63 + 30 new probe/availability/recovery tests).
+- [x] A test asserts that with `first_n=0` the probe omits `firstNObservations` (the `FakeApi` records `first_n_observations is None`), and with `first_n=1` it passes `1` — proving the `PROBE_FIRST_N_OBSERVATIONS=0` fallback path works. (Repo ships no linter, so no lint command is asserted.)
 
 #### Manual Verification:
 - [ ] **Verify `firstNObservations` is honored:** live `GET /data/TNSO,DF_01DI_IND_AGING,1.0/._T.TH._T...?firstNObservations=1` returns 200 with a bounded payload (not a 4xx param-rejection). If rejected, set `PROBE_FIRST_N_OBSERVATIONS=0` as the documented default and confirm probes still function (just larger payloads).

@@ -16,6 +16,7 @@ import jsonschema
 import pytest
 
 from tnso_mcp_server.api.models import (
+    CheckDataAvailabilityInput,
     GetConstraintsInput,
     GetDataInput,
     GetStructureInput,
@@ -74,6 +75,17 @@ def test_every_required_name_is_declared_in_properties():
         # dimension_filters as a JSON-encoded string: schema must accept what
         # GetDataInput._coerce_filters accepts (round-trip asserted below).
         ("get_data", {"dataflow_id": "DF_X", "dimension_filters": '{"SEX": ["_T"]}'}),
+        ("check_data_availability", {"dataflow_id": "DF_X"}),
+        (
+            "check_data_availability",
+            {
+                "dataflow_id": "DF_X",
+                "dimension_filters": {"SEX": ["_T"], "CWT": ["10"]},
+                "start_period": "2560",
+                "end_period": "2567",
+            },
+        ),
+        ("check_data_availability", {"dataflow_id": "DF_X", "dimension_filters": '{"SEX": ["_T"]}'}),
         ("get_territorial_codes", {}),
         ("get_territorial_codes", {"level": "province", "name": "Bangkok"}),
         ("get_cache_diagnostics", {}),
@@ -96,6 +108,8 @@ def test_valid_payloads_pass_schema_validation(tool_name, arguments):
         ("get_concepts", {"concept_id": "X", "lang": "fr"}),      # lang not in enum
         ("get_data", {"dataflow_id": "X", "detail": "bogus"}),    # detail not in enum
         ("get_data", {"dataflow_id": "X", "dimension_filters": {"SEX": "T"}}),  # value not an array
+        ("check_data_availability", {}),                          # missing required id
+        ("check_data_availability", {"dataflow_id": "X", "dimension_filters": {"SEX": "T"}}),  # value not an array
         ("get_territorial_codes", {"level": "galaxy"}),           # level not in enum
         ("get_cache_diagnostics", {"debug": "yes"}),              # debug not a boolean
     ],
@@ -113,6 +127,7 @@ ID_CASES = [
     ("get_structure", GetStructureInput, "datastructure_id", "id_datastructure"),
     ("get_constraints", GetConstraintsInput, "dataflow_id", "id_dataflow"),
     ("get_data", GetDataInput, "dataflow_id", "id_dataflow"),
+    ("check_data_availability", CheckDataAvailabilityInput, "dataflow_id", "id_dataflow"),
 ]
 
 

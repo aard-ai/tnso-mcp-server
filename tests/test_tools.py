@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 
 from tnso_mcp_server.api.models import (
+    ApiError,
     CodelistInfo,
     CodeValue,
     DataflowInfo,
     DatastructureInfo,
     DimensionInfo,
+    NoRecordsError,
 )
+from tnso_mcp_server.tools.check_data_availability import handle_check_data_availability
 from tnso_mcp_server.tools.discover_dataflows import handle_discover_dataflows
 from tnso_mcp_server.tools.get_constraints import handle_get_constraints
 from tnso_mcp_server.tools.get_data import handle_get_data
@@ -53,6 +56,12 @@ class FakeApi:
             ),
         }
         self.last_data_call: dict = {}
+        # Probe-driven knobs: how many times get_data_csv was called, and which keys
+        # behave as empty (404 NoRecordsFound) or inconclusive (generic ApiError).
+        self.data_call_count = 0
+        self.no_data_keys: set[str] = set()
+        self.error_keys: set[str] = set()
+        self.header_only_keys: set[str] = set()
 
     async def get_dataflows(self):
         return list(self.dataflows)
@@ -75,8 +84,21 @@ class FakeApi:
         end_period=None,
         detail="full",
         dimension_at_observation=None,
+        first_n_observations=None,
     ):
-        self.last_data_call = {"key": key, "start": start_period, "end": end_period}
+        self.data_call_count += 1
+        self.last_data_call = {
+            "key": key,
+            "start": start_period,
+            "end": end_period,
+            "first_n": first_n_observations,
+        }
+        if key in self.error_keys:
+            raise ApiError("Upstream rejected the request.", status_code=400)
+        if key in self.no_data_keys:
+            raise NoRecordsError("No records found.", status_code=404)
+        if key in self.header_only_keys:
+            return "DATAFLOW,POP_IND,CWT,TIME_PERIOD,OBS_VALUE\n"
         return (
             "DATAFLOW,POP_IND,CWT,TIME_PERIOD,OBS_VALUE\n"
             "TNSO:DF_AGING(1.0),DEM_IND101,10,2567,123\n"
@@ -173,12 +195,138 @@ async def test_get_data_builds_key_and_passes_period(cache_manager):
     assert api.last_data_call["end"] == "2564"
 
 
+async def test_get_data_empty_no_records_triggers_recovery(cache_manager):
+    api = FakeApi()
+    api.no_data_keys = {".10"}  # primary key (POP_IND.CWT order, CWT=10) -> 404
+    res = await handle_get_data(
+        {"id_dataflow": "DF_AGING", "dimension_filters": {"CWT": ["10"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    txt = _text(res)
+    assert "No data found" in txt
+    assert "Removed CWT filter" in txt  # the verified alternative
+    assert "/data/" in txt  # a reproducible URL was rendered
+
+
+async def test_get_data_empty_header_only_csv_triggers_recovery(cache_manager):
+    api = FakeApi()
+    api.header_only_keys = {".10"}  # primary returns a 0-row (header-only) CSV
+    res = await handle_get_data(
+        {"id_dataflow": "DF_AGING", "dimension_filters": {"CWT": ["10"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    txt = _text(res)
+    assert "No data found" in txt
+    assert "Removed CWT filter" in txt
+
+
+async def test_get_data_empty_names_invalid_code_in_diagnosis(cache_manager):
+    api = FakeApi()
+    api.no_data_keys = {".999"}  # invalid CWT code; primary 404s
+    res = await handle_get_data(
+        {"id_dataflow": "DF_AGING", "dimension_filters": {"CWT": ["999"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    txt = _text(res)
+    assert "Diagnosis" in txt
+    assert "CWT" in txt and "999" in txt
+    assert "Removed CWT filter" in txt  # still finds a working alternative
+
+
+async def test_get_data_empty_probe_count_bounded(cache_manager):
+    api = FakeApi()
+    # primary + every relaxation is empty, forcing the loop to exhaust the budget.
+    api.no_data_keys = {"DEM_IND101.10", ".10", "DEM_IND101."}
+    res = await handle_get_data(
+        {"id_dataflow": "DF_AGING", "dimension_filters": {"POP_IND": ["DEM_IND101"], "CWT": ["10"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+        max_candidates=2,
+    )
+    txt = _text(res)
+    # 1 primary fetch + at most max_candidates (2) probes = 3 upstream calls.
+    assert api.data_call_count == 3
+    assert "No non-empty alternative found" in txt
+    assert "2 probe(s)" in txt
+
+
 async def test_get_data_blacklisted(cache_manager):
     api = FakeApi()
     res = await handle_get_data(
         {"id_dataflow": "DF_AGING"}, cache_manager, api, DataflowBlacklist(["DF_AGING"])
     )
     assert "blacklisted" in _text(res).lower()
+
+
+async def test_check_data_availability_available_combo(cache_manager):
+    api = FakeApi()
+    res = await handle_check_data_availability(
+        {"dataflow_id": "DF_AGING", "dimension_filters": {"CWT": ["10"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    data = json.loads(_text(res))
+    assert data["available"] is True
+    assert data["status"] == "nonempty"
+    assert data["observation_count"] == 1
+    assert api.data_call_count == 1  # exactly one probe
+
+
+async def test_check_data_availability_empty_combo(cache_manager):
+    api = FakeApi()
+    api.no_data_keys = {".10"}  # POP_IND.CWT order -> CWT=10 is ".10"
+    res = await handle_check_data_availability(
+        {"dataflow_id": "DF_AGING", "dimension_filters": {"CWT": ["10"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    data = json.loads(_text(res))
+    assert data["available"] is False
+    assert data["status"] == "empty"
+
+
+async def test_check_data_availability_invalid_code_skips_probe(cache_manager):
+    api = FakeApi()
+    res = await handle_check_data_availability(
+        {"dataflow_id": "DF_AGING", "dimension_filters": {"CWT": ["999"]}},
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    data = json.loads(_text(res))
+    assert data["available"] is False
+    assert data["status"] == "provably_empty"
+    assert "CWT" in data["diagnosis"]["invalid_codes"]
+    assert api.data_call_count == 0  # no network probe was issued
+
+
+async def test_check_data_availability_out_of_range_period_skips_probe(cache_manager):
+    api = FakeApi()
+    res = await handle_check_data_availability(
+        {
+            "dataflow_id": "DF_AGING",
+            "dimension_filters": {"CWT": ["10"]},
+            "start_period": "2599",
+            "end_period": "2599",
+        },
+        cache_manager,
+        api,
+        DataflowBlacklist([]),
+    )
+    data = json.loads(_text(res))
+    assert data["available"] is False
+    assert data["status"] == "provably_empty"
+    assert data["diagnosis"]["period_out_of_range"] is not None
+    assert api.data_call_count == 0
 
 
 async def test_territorial_province_name_search(cache_manager):

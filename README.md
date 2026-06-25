@@ -11,7 +11,7 @@ This implementation based on a port of [`ondata/istat_mcp_server`](https://githu
 (Italy / ISTAT), adjusted to point to the Thaliand NSO SDMX endpoint at
 `https://ns1-stathub.nso.go.th/rest`. 
 
-It uses an 8-tool workflow (like the ISTAT MCP), same two-layer caching;
+It uses a 9-tool workflow (like the ISTAT MCP), same two-layer caching;
 the data source, agency, languages (Thai/English) and geography (Thai provinces) are
 swapped in.
 
@@ -28,12 +28,15 @@ swapped in.
 | `get_constraints` | Valid values (with labels) per dimension + available time range. **Start here.** |
 | `get_codelist_description` | Thai/English labels for every code in a codelist. |
 | `get_concepts` | Resolve an SDMX concept id to its Thai/English name. |
-| `get_data` | Fetch observations as a TSV table (+ reproducible CSV/curl URLs). |
+| `get_data` | Fetch observations as a TSV table (+ reproducible CSV/curl URLs). On an empty result it self-diagnoses (invalid codes / out-of-range period) and suggests verified non-empty alternatives. |
+| `check_data_availability` | Pre-flight check that a specific filter/period combination returns rows before a full `get_data`. |
 | `get_territorial_codes` | Thai geography codes: region (`CL_AREA`), province (`CL_CWT`, 77 changwat), district (`CL_AMPHOE`). |
 | `get_cache_diagnostics` | Inspect the on-disk cache. |
 
 **Typical workflow:** `discover_dataflows` → `get_constraints` → `get_data`
-(use `get_territorial_codes` first when you need province/region codes).
+(use `get_territorial_codes` first when you need province/region codes). `get_data`
+self-diagnoses empty results and suggests working alternatives; use
+`check_data_availability` to pre-check a combination before fetching.
 
 ## Install & run
 

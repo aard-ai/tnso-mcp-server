@@ -8,7 +8,7 @@ description: >
   discover -> constraints -> data workflow. Also supports URL-only mode: build a
   download URL without fetching data, keeping the LLM context lightweight.
 license: MIT
-compatibility: Requires the tnso MCP server to be running (8 tools for the TNSO SDMX API).
+compatibility: Requires the tnso MCP server to be running (9 tools for the TNSO SDMX API).
 metadata:
   author: ported from ondata/istat_mcp_server
   version: "1.0"
@@ -33,10 +33,17 @@ prose, labels and section headers. When calling `get_concepts`, pass the matchin
 3. **`get_constraints(dataflow_id=...)`** — ONE call returns each dimension's valid
    codes (with Thai/English labels) **in DSD order**, plus the available time range.
 4. **`get_data(dataflow_id=..., dimension_filters=..., start_period=..., end_period=...)`**
-   — fetch the observations as a TSV table.
+   — fetch the observations as a TSV table. If the query matches no rows, `get_data`
+   self-diagnoses the cause (invalid codes / out-of-range period) and returns up to 2
+   **verified non-empty** alternative queries with ready-to-run URLs — surface those
+   instead of reporting an empty result.
 
 Fast path: if you already know the codes, `get_structure` gives just the dimension
 order without fetching every codelist.
+
+Optional pre-check: **`check_data_availability(dataflow_id=..., dimension_filters=...)`**
+confirms whether a specific combination returns rows before a full `get_data` — handy
+when you're unsure a filter/period combo has data.
 
 ## 2. Buddhist Era dates — IMPORTANT
 TNSO time periods use the **Buddhist Era** calendar: **BE = Gregorian + 543**.

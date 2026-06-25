@@ -78,6 +78,27 @@ class ConceptSchemeInfo(BaseModel):
 # --------------------------------------------------------------------------- #
 # Tool input models
 # --------------------------------------------------------------------------- #
+def _coerce_dimension_filters(v: Any) -> Any:
+    """Accept either a dict or a JSON-encoded string (LLMs often send a string).
+
+    Shared by ``get_data`` and ``check_data_availability`` so the two never drift.
+    """
+    if v is None or isinstance(v, dict):
+        return v
+    if isinstance(v, str):
+        v = v.strip()
+        if not v:
+            return None
+        try:
+            parsed = json.loads(v)
+        except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+            raise ValueError(f"dimension_filters must be a JSON object: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("dimension_filters JSON must decode to an object")
+        return parsed
+    raise ValueError("dimension_filters must be an object or a JSON string")
+
+
 class DiscoverDataflowsInput(BaseModel):
     """Input for discover_dataflows: optional comma-separated keywords."""
 
@@ -132,24 +153,29 @@ class GetDataInput(BaseModel):
     detail: str = "full"
     dimension_at_observation: str | None = None
 
-    @field_validator("dimension_filters", mode="before")
-    @classmethod
-    def _coerce_filters(cls, v: Any) -> Any:
-        """Accept either a dict or a JSON-encoded string (LLMs often send a string)."""
-        if v is None or isinstance(v, dict):
-            return v
-        if isinstance(v, str):
-            v = v.strip()
-            if not v:
-                return None
-            try:
-                parsed = json.loads(v)
-            except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-                raise ValueError(f"dimension_filters must be a JSON object: {exc}") from exc
-            if not isinstance(parsed, dict):
-                raise ValueError("dimension_filters JSON must decode to an object")
-            return parsed
-        raise ValueError("dimension_filters must be an object or a JSON string")
+    _coerce_filters = field_validator("dimension_filters", mode="before")(
+        _coerce_dimension_filters
+    )
+
+
+class CheckDataAvailabilityInput(BaseModel):
+    """Input for check_data_availability: a dataflow id, a filter combo, optional period.
+
+    Accepts ``dataflow_id`` (canonical) or the legacy ``id_dataflow`` alias, and (like
+    ``get_data``) a ``dimension_filters`` dict or its JSON-encoded string form.
+    """
+
+    dataflow_id: str = Field(validation_alias=AliasChoices("dataflow_id", "id_dataflow"))
+    dimension_filters: dict[str, list[str]] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("dimension_filters", "filters"),
+    )
+    start_period: str | None = None
+    end_period: str | None = None
+
+    _coerce_filters = field_validator("dimension_filters", mode="before")(
+        _coerce_dimension_filters
+    )
 
 
 class GetTerritorialCodesInput(BaseModel):
@@ -176,3 +202,7 @@ class ApiError(Exception):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+
+
+class NoRecordsError(ApiError):
+    """Raised when the upstream returns HTTP 404 NoRecordsFound (query is valid but matches no data)."""
