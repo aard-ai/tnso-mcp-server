@@ -27,6 +27,17 @@ def test_diagnose_flags_invalid_code_and_ignores_valid():
     assert "POP_IND" not in diag["invalid_codes"]  # present in available -> valid
     assert diag["invalid_codes"]["CWT"]["given"] == ["999"]
     assert diag["invalid_codes"]["CWT"]["valid_sample"] == ["10", "58"]
+    assert diag["fully_invalid_dims"] == ["CWT"]  # every requested CWT code is invalid
+
+
+def test_diagnose_partial_invalid_codes_is_not_fully_invalid():
+    # Codes in one dimension are OR-ed, so a valid member keeps the dimension matchable:
+    # the bad code is reported, but the dimension is NOT provably empty.
+    diag = probe.diagnose_filters(
+        {"CWT": ["10", "999"]}, AVAILABLE, DIMENSION_ORDER, TIME_RANGE, None, None
+    )
+    assert diag["invalid_codes"]["CWT"]["given"] == ["999"]
+    assert diag["fully_invalid_dims"] == []
 
 
 def test_diagnose_flags_unknown_dimension():

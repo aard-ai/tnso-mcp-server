@@ -93,22 +93,30 @@ def diagnose_filters(
 ) -> dict:
     """Diagnose, with NO network call, why a filter combination is likely empty.
 
-    Returns ``{"invalid_codes", "unknown_dimensions", "period_out_of_range"}``:
+    Returns ``{"invalid_codes", "fully_invalid_dims", "unknown_dimensions",
+    "period_out_of_range"}``:
 
     * ``invalid_codes`` — ``{dim: {"given": [bad codes], "valid_sample": [<=10 valid]}}``.
       A code is invalid only when ``available[dim]`` is non-empty and the code is absent
       from it (an empty/absent availability list means "cannot judge").
+    * ``fully_invalid_dims`` — dimensions where EVERY requested code is invalid. Codes
+      within a dimension are OR-ed (``build_key`` joins them with ``+``), so only an
+      all-invalid dimension yields no rows; a partially-invalid list (e.g. ``CWT=[10, 999]``)
+      can still match its valid members and must be probed, not declared empty.
     * ``unknown_dimensions`` — filter keys that aren't real dimensions (``build_key`` would
       otherwise silently ignore them).
     * ``period_out_of_range`` — ``{"requested": [sp, ep], "available_years": [start, end]}``
       when the requested span is wholly outside the available years, else ``None``.
 
-    Each set signal proves emptiness; their absence does not prove non-emptiness.
+    Only ``fully_invalid_dims`` and ``period_out_of_range`` prove emptiness; the presence
+    of (partial) ``invalid_codes`` or ``unknown_dimensions`` does not, and their absence
+    never proves non-emptiness.
     """
     filters = filters or {}
     order = set(dimension_order)
 
     invalid_codes: dict[str, dict[str, list[str]]] = {}
+    fully_invalid_dims: list[str] = []
     unknown_dimensions: list[str] = []
     for dim, codes in filters.items():
         if dim not in order:
@@ -117,9 +125,12 @@ def diagnose_filters(
         valid = available.get(dim) or []
         if not valid:
             continue  # no availability info for this dim -> cannot judge
-        bad = [c for c in (codes or []) if c not in valid]
+        requested = list(codes or [])
+        bad = [c for c in requested if c not in valid]
         if bad:
             invalid_codes[dim] = {"given": bad, "valid_sample": valid[:10]}
+            if requested and len(bad) == len(requested):
+                fully_invalid_dims.append(dim)
 
     period_out_of_range: dict | None = None
     if time_range:
@@ -132,6 +143,7 @@ def diagnose_filters(
 
     return {
         "invalid_codes": invalid_codes,
+        "fully_invalid_dims": fully_invalid_dims,
         "unknown_dimensions": unknown_dimensions,
         "period_out_of_range": period_out_of_range,
     }
@@ -209,6 +221,8 @@ async def probe_nonempty(
     end_period: str | None,
     *,
     first_n: int | None,
+    detail: str = "full",
+    dimension_at_observation: str | None = None,
 ) -> dict:
     """Probe whether one key is non-empty; never raises, always returns a cacheable dict.
 
@@ -222,6 +236,11 @@ async def probe_nonempty(
     The try/except lives inside the cached ``fetch`` so the non-``None`` sentinel is cached
     too — a repeated probe of the same key never re-hits the API. When ``first_n`` is falsy
     (0/None) the request omits ``firstNObservations`` entirely.
+
+    ``detail`` / ``dimension_at_observation`` are forwarded to the upstream so the probe
+    verifies the EXACT query shape a caller will re-run — a non-empty verdict for a
+    ``serieskeysonly`` alternative must come from a ``serieskeysonly`` probe, not a
+    ``full`` one.
     """
 
     async def fetch() -> dict:
@@ -233,6 +252,8 @@ async def probe_nonempty(
                 key=key,
                 start_period=start_period,
                 end_period=end_period,
+                detail=detail,
+                dimension_at_observation=dimension_at_observation,
                 first_n_observations=first_n or None,
             )
         except NoRecordsError:
@@ -245,7 +266,17 @@ async def probe_nonempty(
         return {"status": "nonempty", "observation_count": count}
 
     return await cache.get_or_fetch(
-        helpers.k_probe(api.agency, dataflow_id, version, key, start_period, end_period, first_n),
+        helpers.k_probe(
+            api.agency,
+            dataflow_id,
+            version,
+            key,
+            start_period,
+            end_period,
+            first_n,
+            detail,
+            dimension_at_observation,
+        ),
         fetch,
         persistent_ttl=helpers.DATA_TTL,
     )

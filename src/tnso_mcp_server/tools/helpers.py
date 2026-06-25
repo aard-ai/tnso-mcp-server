@@ -118,13 +118,21 @@ def k_probe(
     sp: Any,
     ep: Any,
     first_n: Any,
+    detail: Any = "full",
+    dimension_at_observation: Any = None,
 ) -> str:
     """Cache key for a bounded non-empty probe.
 
     Distinct ``probe:`` namespace from ``k_data`` so a probe's truncated
     (``firstNObservations``) payload never satisfies a later full ``get_data``.
+    ``detail`` / ``dimension_at_observation`` are part of the key because they change
+    the response shape (e.g. ``serieskeysonly`` returns no observations), so two probes
+    of the same key under different detail levels must not share a cache entry.
     """
-    return f"probe:{agency}:{dataflow_id}:{version or 'latest'}:{key}:{sp}:{ep}:{first_n}"
+    return (
+        f"probe:{agency}:{dataflow_id}:{version or 'latest'}:{key}:{sp}:{ep}:{first_n}"
+        f":{detail}:{dimension_at_observation or '_'}"
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -2,8 +2,9 @@
 
 Confirms whether a specific dimension/period combination returns any rows *before*
 committing to a full `get_data`. When the free `diagnose_filters` pre-check proves the
-combo cannot match (invalid codes, unknown dimensions, or an out-of-range period) it
-answers ``available: false`` with NO network probe — saving a rate-limited call.
+combo cannot match (a dimension with no valid codes at all, or an out-of-range period)
+it answers ``available: false`` with NO network probe — saving a rate-limited call.
+Partially-invalid code lists and unknown dimensions are diagnosed but still probed.
 Otherwise it runs exactly one bounded, cached probe.
 """
 
@@ -33,19 +34,31 @@ logger = logging.getLogger(__name__)
 
 def _note(status: str, diagnosis: dict, observation_count: int | None) -> str:
     """One-line human summary of the availability verdict."""
-    # Unknown dimension keys are silently dropped by build_key (they don't change the
-    # query), so they never prove emptiness — they are surfaced as a warning instead.
+    # Build a trailing warning from signals that were diagnosed but did NOT prove emptiness:
+    # unknown dimensions (dropped by build_key) and partially-invalid code lists (the
+    # dimension still has valid members, so the combo was probed, not short-circuited).
+    notes: list[str] = []
     unknown = diagnosis["unknown_dimensions"]
-    warn = (
-        f" Note: unknown dimension(s) {', '.join(unknown)} were ignored (not part of "
-        "this dataflow)."
-        if unknown
-        else ""
-    )
+    if unknown:
+        notes.append(
+            f"unknown dimension(s) {', '.join(unknown)} were ignored (not part of this dataflow)"
+        )
+    partial_invalid = [
+        dim for dim in diagnosis["invalid_codes"] if dim not in diagnosis["fully_invalid_dims"]
+    ]
+    if status != "provably_empty" and partial_invalid:
+        notes.append(
+            f"some requested codes in {', '.join(partial_invalid)} are invalid but other "
+            "codes are valid, so the combination was still probed"
+        )
+    warn = (" Note: " + "; ".join(notes) + ".") if notes else ""
+
     if status == "provably_empty":
         reasons = []
-        if diagnosis["invalid_codes"]:
-            reasons.append(f"invalid codes in {', '.join(diagnosis['invalid_codes'])}")
+        if diagnosis["fully_invalid_dims"]:
+            reasons.append(
+                f"no valid codes requested for {', '.join(diagnosis['fully_invalid_dims'])}"
+            )
         if diagnosis["period_out_of_range"]:
             reasons.append("requested period is outside the available range")
         return (
@@ -98,10 +111,12 @@ async def handle_check_data_availability(
         params.end_period,
     )
 
-    # Only signals that actually constrain the SDMX query prove emptiness: invalid codes
-    # (absent from the dataflow's available values) and an out-of-range period. Unknown
-    # dimensions are dropped by build_key, so they don't prove emptiness — still probe.
-    provably_empty = bool(diagnosis["invalid_codes"] or diagnosis["period_out_of_range"])
+    # Only signals that actually empty the SDMX query prove emptiness: a dimension whose
+    # every requested code is invalid (so it selects nothing) and an out-of-range period.
+    # A partially-invalid code list still has valid members that may return rows (codes in
+    # one dimension are OR-ed), and unknown dimensions are dropped by build_key — both are
+    # diagnosed but still probed.
+    provably_empty = bool(diagnosis["fully_invalid_dims"] or diagnosis["period_out_of_range"])
 
     if provably_empty:
         status = "provably_empty"

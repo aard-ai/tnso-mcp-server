@@ -220,7 +220,18 @@ async def _render_empty_recovery(
         sp = None if drop_period else start_period
         ep = None if drop_period else end_period
         result = await probe.probe_nonempty(
-            cache, api, dataflow_id, dataflow.version, cand.key, sp, ep, first_n=first_n
+            cache,
+            api,
+            dataflow_id,
+            dataflow.version,
+            cand.key,
+            sp,
+            ep,
+            first_n=first_n,
+            # Probe the SAME shape the advertised alternative URL will use, so a
+            # "verified, returns data" claim holds for the exact query we hand back.
+            detail=params.detail,
+            dimension_at_observation=params.dimension_at_observation,
         )
         probes_issued += 1
         if result["status"] == "nonempty":
