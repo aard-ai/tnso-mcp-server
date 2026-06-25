@@ -4,7 +4,10 @@ An [MCP](https://modelcontextprotocol.io) server that lets an LLM **discover, qu
 analyse Thailand's official statistics** from the **National Statistical Office (NSO,
 agency `TNSO`)** via the SDMX REST API — in natural language.
 
-This is based off a port of [`ondata/istat_mcp_server`](https://github.com/ondata/istat_mcp_server)
+When connected to your chat tool (e.g. Gemini or Claude) it can generate analysis like the below:
+<img width="1007" height="917" alt="image" src="https://github.com/user-attachments/assets/3b132f28-21a3-4262-b7c1-66a0bc942030" />
+
+This implementation based on a port of [`ondata/istat_mcp_server`](https://github.com/ondata/istat_mcp_server)
 (Italy / ISTAT), adjusted to point to the Thaliand NSO SDMX endpoint at
 `https://ns1-stathub.nso.go.th/rest`. 
 
