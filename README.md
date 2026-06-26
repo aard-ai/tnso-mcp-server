@@ -4,6 +4,11 @@ An [MCP](https://modelcontextprotocol.io) server that lets an LLM **discover, qu
 analyse Thailand's official statistics** from the **National Statistical Office (NSO,
 agency `TNSO`)** via the SDMX REST API — in natural language.
 
+This is a lightweight MCP that uses keyword search (this is not the Aard MCP).  
+It should be effective for e.g. searching for indicators or dataflows. 
+
+Note that this lightweight approach is much less effective for certain question types such as "Compare Bangkok and Chon buri", or "Tell me about trade of all fish that are not tuna".  These kinds of questions benefit from structure-based search across all data sources, just two factors that make the Aard MCP different from other tools.  
+
 When connected to your chat tool (e.g. Gemini or Claude) it can generate analysis like the below:
 <img width="1007" height="917" alt="image" src="https://github.com/user-attachments/assets/3b132f28-21a3-4262-b7c1-66a0bc942030" />
 
